@@ -94,9 +94,9 @@ export class LobbyScene extends Phaser.Scene {
       this.refreshButton();
     });
 
-    this.socket.onGameStarted(() => {
+    this.socket.onGameStarted((playerList) => {
       this.socket.offLobby();
-      this.scene.start('GameScene', { socket: this.socket, myName: this.myName });
+      this.scene.start('GameScene', { socket: this.socket, myName: this.myName, playerList });
     });
   }
 

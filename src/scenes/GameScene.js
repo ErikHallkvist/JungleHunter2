@@ -1,4 +1,11 @@
 import Phaser from 'phaser';
+import { EnemySystem } from '../systems/EnemySystem.js';
+import { WeaponSystem } from '../systems/WeaponSystem.js';
+import { BulletSystem } from '../systems/BulletSystem.js';
+import { HealthUI } from '../ui/HealthUI.js';
+import { WaveUI } from '../ui/WaveUI.js';
+import { ShopUI } from '../ui/ShopUI.js';
+import { GoldUI } from '../ui/GoldUI.js';
 
 const ROOM = { x: 32, y: 32, width: 1216, height: 656 };
 const PLAYER_W = 28;
@@ -13,6 +20,7 @@ export class GameScene extends Phaser.Scene {
   init(data) {
     this.socket = data.socket;
     this.myName = data.myName;
+    this.initialPlayerList = data.playerList || [];
   }
 
   create() {
@@ -21,49 +29,42 @@ export class GameScene extends Phaser.Scene {
     this.localId = null;
 
     this.createRoom();
+
     this.wasd = this.input.keyboard.addKeys({
       up: Phaser.Input.Keyboard.KeyCodes.W,
       down: Phaser.Input.Keyboard.KeyCodes.S,
       left: Phaser.Input.Keyboard.KeyCodes.A,
       right: Phaser.Input.Keyboard.KeyCodes.D,
     });
-
-    // World bounds act as invisible walls
     this.physics.world.setBounds(ROOM.x, ROOM.y, ROOM.width, ROOM.height);
 
-    this.registerSocketEvents();
-  }
+    // Systems
+    this.enemySystem = new EnemySystem(this);
+    this.enemySystem.init(this.socket);
 
-  createRoom() {
-    // Jungle background
-    this.add.rectangle(640, 360, 1280, 720, 0x0d2b1a);
+    this.bulletSystem = new BulletSystem(this);
+    this.bulletSystem.init(this.socket, () => this.enemySystem.getEnemies());
 
-    // Floor
-    this.add.rectangle(640, 360, ROOM.width, ROOM.height, 0x1b4332);
+    this.weaponSystem = new WeaponSystem(this, this.socket, this.myName);
+    this.weaponSystem.init();
 
-    // Room border
-    const g = this.add.graphics();
-    g.lineStyle(4, 0x2d6a4f, 1);
-    g.strokeRect(ROOM.x, ROOM.y, ROOM.width, ROOM.height);
+    this.healthUI = new HealthUI(this);
+    this.healthUI.init(this.socket, this.myName);
 
-    // Spawn zone indicator (left side)
-    const spawnG = this.add.graphics();
-    spawnG.lineStyle(1, 0x4caf50, 0.3);
-    spawnG.strokeRect(ROOM.x, ROOM.y, 200, ROOM.height);
-    this.add.text(ROOM.x + 100, ROOM.y + 20, 'SPAWN', {
-      fontSize: '11px',
-      color: '#4caf50',
-      fontFamily: 'monospace',
-      alpha: 0.5,
-    }).setOrigin(0.5).setAlpha(0.4);
-  }
+    this.waveUI = new WaveUI(this);
+    this.waveUI.init(this.socket);
 
-  registerSocketEvents() {
-    this.socket.onGameInit((playerList) => {
-      playerList.forEach((player) => this.spawnPlayer(player));
-    });
+    this.shopUI = new ShopUI(this, this.socket);
+    this.shopUI.init();
 
-    this.socket.onGamePlayerMoved(({ id, x, y }) => {
+    this.goldUI = new GoldUI(this);
+    this.goldUI.init(this.socket, this.socket.id);
+
+    // Spawn all players from data passed from lobby scene
+    this.initialPlayerList.forEach((player) => this.spawnPlayer(player));
+
+    // Other players joining/leaving/moving
+    this.socket.socket.on('gamePlayerMoved', ({ id, x, y }) => {
       const p = this.players[id];
       if (p && id !== this.localId) {
         p.sprite.setPosition(x, y);
@@ -71,7 +72,7 @@ export class GameScene extends Phaser.Scene {
       }
     });
 
-    this.socket.onGamePlayerLeft((id) => {
+    this.socket.socket.on('gamePlayerLeft', (id) => {
       const p = this.players[id];
       if (p) {
         p.sprite.destroy();
@@ -79,6 +80,15 @@ export class GameScene extends Phaser.Scene {
         delete this.players[id];
       }
     });
+  }
+
+  createRoom() {
+    this.add.rectangle(640, 360, 1280, 720, 0x0d2b1a);
+    this.add.rectangle(640, 360, ROOM.width, ROOM.height, 0x1b4332);
+
+    const g = this.add.graphics();
+    g.lineStyle(4, 0x2d6a4f, 1);
+    g.strokeRect(ROOM.x, ROOM.y, ROOM.width, ROOM.height);
   }
 
   spawnPlayer(playerData) {
@@ -92,18 +102,20 @@ export class GameScene extends Phaser.Scene {
       sprite.body.setCollideWorldBounds(true);
       this.localSprite = sprite;
       this.localId = playerData.id;
+      this.weaponSystem.setLocalPlayerSprite(sprite);
     }
 
-    const nameText = this.add.text(playerData.x, playerData.y - PLAYER_H / 2 - 10, playerData.name, {
-      fontSize: '13px',
-      color: isLocal ? '#00e676' : '#ffffff',
-      fontFamily: 'monospace',
-    }).setOrigin(0.5);
+    const nameText = this.add.text(
+      playerData.x, playerData.y - PLAYER_H / 2 - 10,
+      playerData.name,
+      { fontSize: '13px', color: isLocal ? '#00e676' : '#ffffff', fontFamily: 'monospace' }
+    ).setOrigin(0.5);
 
     this.players[playerData.id] = { sprite, nameText, isLocal };
+    this.healthUI.registerPlayerSprite(playerData.id, sprite, isLocal);
   }
 
-  update() {
+  update(time, delta) {
     if (!this.localSprite) return;
 
     const body = this.localSprite.body;
@@ -115,14 +127,20 @@ export class GameScene extends Phaser.Scene {
     if (this.wasd.up.isDown) body.setVelocityY(-SPEED);
     else if (this.wasd.down.isDown) body.setVelocityY(SPEED);
 
-    // Keep name text above local player
     const local = this.players[this.localId];
     if (local) {
-      local.nameText.setPosition(this.localSprite.x, this.localSprite.y - PLAYER_H / 2 - 10);
+      local.nameText.setPosition(
+        this.localSprite.x,
+        this.localSprite.y - PLAYER_H / 2 - 10
+      );
     }
 
     if (body.velocity.x !== 0 || body.velocity.y !== 0) {
       this.socket.emitPlayerMove(this.localSprite.x, this.localSprite.y);
     }
+
+    this.enemySystem.update();
+    this.bulletSystem.update(delta);
+    this.healthUI.updateBarPositions();
   }
 }
