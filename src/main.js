@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { LobbyScene } from './scenes/LobbyScene.js';
 import { GameScene } from './scenes/GameScene.js';
 
 const config = {
@@ -10,7 +11,7 @@ const config = {
     default: 'arcade',
     arcade: { debug: false },
   },
-  scene: [GameScene],
+  scene: [LobbyScene, GameScene],
   parent: document.body,
 };
 

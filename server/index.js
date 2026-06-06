@@ -10,28 +10,53 @@ const io = new Server(httpServer, {
 
 const PORT = 3000;
 
-const players = {};
+const ANIMAL_NAMES = [
+  'Tiger', 'Panther', 'Jaguar', 'Leopard', 'Cheetah',
+  'Wolf', 'Fox', 'Bear', 'Eagle', 'Hawk',
+  'Viper', 'Cobra', 'Python', 'Gecko', 'Iguana',
+  'Gorilla', 'Baboon', 'Lynx', 'Puma', 'Ocelot',
+  'Hyena', 'Jackal', 'Dingo', 'Cougar', 'Wolverine',
+  'Falcon', 'Condor', 'Vulture', 'Raven', 'Osprey',
+];
+
+const lobby = {};
+let gameInProgress = false;
+
+function getUniqueName() {
+  const usedNames = new Set(Object.values(lobby).map((p) => p.name));
+  const available = ANIMAL_NAMES.filter((n) => !usedNames.has(n));
+  if (available.length === 0) return `Player${Math.floor(Math.random() * 9999)}`;
+  return available[Math.floor(Math.random() * available.length)];
+}
+
+function broadcastLobbyUpdate() {
+  io.emit('lobbyUpdate', {
+    players: Object.values(lobby),
+    gameInProgress,
+  });
+}
 
 io.on('connection', (socket) => {
-  console.log(`Spelare ansluten: ${socket.id}`);
+  const name = getUniqueName();
+  lobby[socket.id] = { id: socket.id, name };
+  console.log(`${name} ansluten (${socket.id})`);
 
-  players[socket.id] = { id: socket.id, x: 400, y: 300 };
+  socket.emit('assignedName', name);
+  broadcastLobbyUpdate();
 
-  socket.emit('currentPlayers', players);
-  socket.broadcast.emit('playerJoined', players[socket.id]);
-
-  socket.on('playerMove', (data) => {
-    if (players[socket.id]) {
-      players[socket.id].x = data.x;
-      players[socket.id].y = data.y;
-      socket.broadcast.emit('playerMoved', { id: socket.id, x: data.x, y: data.y });
+  socket.on('startGame', () => {
+    if (!gameInProgress) {
+      gameInProgress = true;
+      io.emit('gameStarted');
+      broadcastLobbyUpdate();
+      console.log('Spelet har startat');
     }
   });
 
   socket.on('disconnect', () => {
-    console.log(`Spelare frånkopplad: ${socket.id}`);
-    delete players[socket.id];
-    io.emit('playerLeft', socket.id);
+    console.log(`${lobby[socket.id]?.name} frånkopplad`);
+    delete lobby[socket.id];
+    broadcastLobbyUpdate();
   });
 });
 
