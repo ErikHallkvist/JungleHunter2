@@ -76,6 +76,13 @@ export const WEAPONS = [
     desc: 'Refined SMG. High rate of fire.',
   },
   {
+    id: 'grenade', name: 'Grenades', price: 750, tier: 'Explosive',
+    damage: 90, fireRate: 1800, speed: 520, pellets: 1, spreadDeg: 0,
+    bulletType: 'energy', explodeRadius: 130,
+    icon: 'w_flak_cannon',
+    desc: 'Area explosion. Q to throw at cursor.',
+  },
+  {
     id: 'combat_shotgun', name: 'Combat Shotgun', price: 820, tier: 'Shotgun',
     damage: 12, fireRate: 550, speed: 760, pellets: 7, spreadDeg: 45,
     bulletType: 'pellet', icon: 'w_combat_shotgun',

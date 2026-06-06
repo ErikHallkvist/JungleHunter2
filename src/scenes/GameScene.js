@@ -82,6 +82,16 @@ export class GameScene extends Phaser.Scene {
     // Inset by 3px so the 36px sprite stays fully inside the room borders
     this.physics.world.setBounds(ROOM.x + 3, ROOM.y + 3, ROOM.width - 6, ROOM.height - 6);
 
+    // Dash (Shift)
+    this.shiftKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SHIFT);
+    this.dashCooldownUntil = 0;
+    this.dashActiveUntil = 0;
+    this.dashVx = 0;
+    this.dashVy = 0;
+
+    // Grenade throw (Q)
+    this.qKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.Q);
+
     this.enemySystem = new EnemySystem(this);
     this.enemySystem.init(this.socket);
 
@@ -295,13 +305,48 @@ export class GameScene extends Phaser.Scene {
     }
 
     const body = this.localSprite.body;
+    const now = Date.now();
+
+    // ── Q key: throw grenade toward mouse cursor (if owned) ─────────────────
+    if (Phaser.Input.Keyboard.JustDown(this.qKey) && !this.gameEnded) {
+      if (this.weaponSystem.ownsWeapon('grenade') && !this.shopUI?.isOpen) {
+        const ptr = this.input.activePointer;
+        this.socket.socket.emit('throwGrenade', {
+          originX: this.localSprite.x,
+          originY: this.localSprite.y,
+          targetX: ptr.x,
+          targetY: ptr.y,
+        });
+        this.playShotSound?.('energy', true);
+      }
+    }
+
+    // ── Shift: dash in movement direction (1.5 s cooldown, 140 ms burst) ───
+    if (Phaser.Input.Keyboard.JustDown(this.shiftKey) && now > this.dashCooldownUntil && !this.gameEnded) {
+      let dx = (this.wasd.right.isDown ? 1 : 0) - (this.wasd.left.isDown ? 1 : 0);
+      let dy = (this.wasd.down.isDown  ? 1 : 0) - (this.wasd.up.isDown   ? 1 : 0);
+      if (dx !== 0 || dy !== 0) {
+        const len = Math.hypot(dx, dy);
+        this.dashVx = (dx / len) * 700;
+        this.dashVy = (dy / len) * 700;
+        this.dashActiveUntil   = now + 140;
+        this.dashCooldownUntil = now + 1500;
+        this.localSprite.setAlpha(0.35);
+        this.tweens.add({ targets: this.localSprite, alpha: 1, duration: 220 });
+      }
+    }
+
     body.setVelocity(0);
 
-    if (this.wasd.left.isDown) body.setVelocityX(-SPEED);
-    else if (this.wasd.right.isDown) body.setVelocityX(SPEED);
+    if (now < this.dashActiveUntil) {
+      body.setVelocity(this.dashVx, this.dashVy);
+    } else {
+      if (this.wasd.left.isDown) body.setVelocityX(-SPEED);
+      else if (this.wasd.right.isDown) body.setVelocityX(SPEED);
 
-    if (this.wasd.up.isDown) body.setVelocityY(-SPEED);
-    else if (this.wasd.down.isDown) body.setVelocityY(SPEED);
+      if (this.wasd.up.isDown) body.setVelocityY(-SPEED);
+      else if (this.wasd.down.isDown) body.setVelocityY(SPEED);
+    }
 
     const local = this.players[this.localId];
     if (local) {

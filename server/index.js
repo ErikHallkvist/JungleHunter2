@@ -158,6 +158,12 @@ io.on('connection', (socket) => {
     }
   });
 
+  socket.on('throwGrenade', (data) => {
+    if (gameInProgress && combatManager && shopManager?.getWeapons(socket.id).includes('grenade')) {
+      combatManager.handleGrenadeThrow(socket.id, data);
+    }
+  });
+
   socket.on('disconnect', () => {
     console.log(`${lobby[socket.id]?.name} frånkopplad`);
     delete lobby[socket.id];
