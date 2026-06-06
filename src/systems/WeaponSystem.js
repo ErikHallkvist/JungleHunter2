@@ -118,7 +118,7 @@ export class WeaponSystem {
 
     const w = getWeapon(weaponType);
     const notif = this.scene.add
-      .text(640, 150, `Utrustad: ${w.name}!`, {
+      .text(640, 150, `Equipped: ${w.name}!`, {
         fontSize: '20px',
         color: '#ffe27a',
         fontFamily: 'monospace',
@@ -141,7 +141,7 @@ export class WeaponSystem {
     if (!this.hudText) return;
     const w = getWeapon(this.currentWeapon);
     const idx = this.ownedWeapons.indexOf(this.currentWeapon) + 1;
-    this.hudText.setText(`[${idx}] ${w.name}  (hjul/siffror för att byta)`);
+    this.hudText.setText(`[${idx}] ${w.name}  (wheel / number keys to switch)`);
   }
 
   getCurrentWeapon() {

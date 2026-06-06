@@ -14,6 +14,16 @@ export class EnemySystem {
     socket.socket.on('enemiesMoved', (list) => this.onEnemiesMoved(list));
     socket.socket.on('enemyDied', (data) => this.onEnemyDied(data));
     socket.socket.on('enemyDamaged', (data) => this.onEnemyDamaged(data));
+    socket.socket.on('enemyLeaked', (data) => this.onEnemyLeaked(data));
+  }
+
+  onEnemyLeaked({ id }) {
+    const enemy = this.enemies.get(id);
+    if (!enemy) return;
+    enemy.hpBarBg.destroy();
+    enemy.hpBar.destroy();
+    enemy.sprite.destroy();
+    this.enemies.delete(id);
   }
 
   onEnemySpawned({ id, x, y, hp, maxHp }) {
@@ -73,8 +83,9 @@ export class EnemySystem {
       ratio > 0.5 ? 0x00ff00 : ratio > 0.25 ? 0xffaa00 : 0xff3333
     );
 
-    // Brief red flash on hit
+    // Brief red flash on hit + impact sound
     enemy.sprite.setTint(0xff4444);
+    this.scene.playSfx?.('sfx_hit', 0.3);
     this.scene.time.delayedCall(80, () => {
       if (enemy.sprite?.active) enemy.sprite.clearTint();
     });
@@ -113,6 +124,7 @@ export class EnemySystem {
       this.socket.socket.off('enemiesMoved');
       this.socket.socket.off('enemyDied');
       this.socket.socket.off('enemyDamaged');
+      this.socket.socket.off('enemyLeaked');
     }
     for (const { sprite, hpBarBg, hpBar } of this.enemies.values()) {
       sprite.destroy();

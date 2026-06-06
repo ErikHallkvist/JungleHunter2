@@ -29,6 +29,7 @@ const lobby = {};
 const gamePlayers = {};
 let gameInProgress = false;
 let defeatTriggered = false;
+const MAX_LEAKS = 10;
 
 let enemyManager = null;
 let waveManager = null;
@@ -52,23 +53,22 @@ function initGame() {
   combatManager = new CombatManager(io, enemyManager, () => gamePlayers, shopManager);
   waveManager = new WaveManager(io, enemyManager, () => gamePlayers);
 
-  // Route melee damage through CombatManager for server-side HP tracking
-  enemyManager.onMeleeDamage = (playerId, damage) => {
-    combatManager.handlePlayerDamaged(playerId, damage);
+  // Enemies no longer attack players — they try to escape past the left wall.
+  // Game over once MAX_LEAKS enemies have escaped.
+  enemyManager.onEnemyLeaked = (totalLeaked) => {
+    io.emit('leakUpdate', { escaped: totalLeaked, max: MAX_LEAKS });
+    if (totalLeaked >= MAX_LEAKS) triggerGameOver();
   };
-
-  // Co-op fail state: the first player death ends the game for everyone.
-  combatManager.onPlayerDied = () => triggerDefeat();
 }
 
-function triggerDefeat() {
-  if (defeatTriggered) return; // only the FIRST death counts
+function triggerGameOver() {
+  if (defeatTriggered) return; // only fire once
   defeatTriggered = true;
 
-  io.emit('gameOver', { reason: 'defeat' });
-  console.log('DEFEAT — en spelare dog, spelet avslutas');
+  io.emit('gameOver', { reason: 'leaked' });
+  console.log(`GAME OVER — ${MAX_LEAKS} fiender passerade banan`);
 
-  // Give clients a few seconds to show DEFEAT, then send everyone to the lobby.
+  // Give clients a few seconds to show GAME OVER, then send them to the lobby.
   setTimeout(() => {
     resetGame();
     io.emit('returnToLobby');
@@ -109,17 +109,17 @@ io.on('connection', (socket) => {
     players.forEach((player, i) => {
       const spawnX = SPAWN_X_MIN + Math.random() * (SPAWN_X_MAX - SPAWN_X_MIN);
       const spawnY = ROOM.y + 80 + (i / Math.max(count - 1, 1)) * (ROOM.height - 160);
-      gamePlayers[player.id] = { id: player.id, name: player.name, x: spawnX, y: spawnY, hp: 100, weapon: 'pistol' };
+      gamePlayers[player.id] = { id: player.id, name: player.name, x: spawnX, y: spawnY, weapon: 'pistol' };
     });
 
     initGame();
 
     players.forEach((player) => {
-      combatManager.initPlayer(player.id);
       shopManager.initPlayer(player.id);
     });
 
     io.emit('gameInit', Object.values(gamePlayers));
+    io.emit('leakUpdate', { escaped: 0, max: MAX_LEAKS });
     broadcastLobbyUpdate();
 
     setTimeout(() => waveManager.startGame(), 1500);
@@ -163,7 +163,6 @@ io.on('connection', (socket) => {
     delete lobby[socket.id];
 
     if (gamePlayers[socket.id]) {
-      combatManager?.removePlayer(socket.id);
       shopManager?.removePlayer(socket.id);
       delete gamePlayers[socket.id];
       io.emit('gamePlayerLeft', socket.id);

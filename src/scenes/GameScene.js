@@ -3,7 +3,6 @@ import { WEAPONS, PROJECTILES, getWeapon } from '../../shared/weapons.js';
 import { EnemySystem } from '../systems/EnemySystem.js';
 import { WeaponSystem } from '../systems/WeaponSystem.js';
 import { BulletSystem } from '../systems/BulletSystem.js';
-import { HealthUI } from '../ui/HealthUI.js';
 import { WaveUI } from '../ui/WaveUI.js';
 import { ShopUI } from '../ui/ShopUI.js';
 import { GoldUI } from '../ui/GoldUI.js';
@@ -41,13 +40,21 @@ export class GameScene extends Phaser.Scene {
     for (const type of Object.keys(PROJECTILES)) {
       this.load.audio(`sfx_${type}`, `assets/sounds/sfx_${type}.wav`);
     }
+    // Gameplay sounds
+    for (const s of ['move', 'hit', 'leak', 'gameover']) {
+      this.load.audio(`sfx_${s}`, `assets/sounds/sfx_${s}.wav`);
+    }
+  }
+
+  // Generic sound helper — silently no-ops if the clip isn't loaded.
+  playSfx(key, volume = 0.4) {
+    if (!this.cache.audio.exists(key)) return;
+    this.sound.play(key, { volume });
   }
 
   // Play a weapon's firing sound. volume lowered for other players' guns.
   playShotSound(bulletType, mine = true) {
-    const key = `sfx_${bulletType}`;
-    if (!this.cache.audio.exists(key)) return;
-    this.sound.play(key, { volume: mine ? 0.45 : 0.22 });
+    this.playSfx(`sfx_${bulletType}`, mine ? 0.45 : 0.22);
   }
 
   create() {
@@ -74,8 +81,14 @@ export class GameScene extends Phaser.Scene {
     this.weaponSystem = new WeaponSystem(this, this.socket, this.myName);
     this.weaponSystem.init();
 
-    this.healthUI = new HealthUI(this);
-    this.healthUI.init(this.socket, this.myName);
+    // Escaped-enemy counter (top-right). Game over when it reaches the max.
+    this.leakMax = 10;
+    this.leakText = this.add.text(1260, 20, 'Escaped: 0 / 10', {
+      fontSize: '18px',
+      color: '#ff5555',
+      fontFamily: 'monospace',
+      fontStyle: 'bold',
+    }).setOrigin(1, 0).setDepth(100);
 
     this.waveUI = new WaveUI(this);
     this.waveUI.init(this.socket);
@@ -110,7 +123,12 @@ export class GameScene extends Phaser.Scene {
       },
       // A player (anyone) changed their active weapon — update the visible gun.
       onWeaponChange: ({ playerId, weaponId }) => this.setPlayerWeapon(playerId, weaponId),
-      gameOver: () => this.showDefeat(),
+      leakUpdate: ({ escaped, max }) => {
+        this.leakMax = max;
+        this.leakText?.setText(`Escaped: ${escaped} / ${max}`);
+      },
+      enemyLeaked: () => this.playSfx('sfx_leak', 0.5),
+      gameOver: () => this.showGameOver(),
       returnToLobby: () => {
         this.scene.start('LobbyScene', { socket: this.socket, myName: this.myName });
       },
@@ -121,6 +139,8 @@ export class GameScene extends Phaser.Scene {
     s.on('gamePlayerLeft', this._handlers.gamePlayerLeft);
     s.on('weaponEquipped', this._handlers.onWeaponChange);
     s.on('weaponSwitched', this._handlers.onWeaponChange);
+    s.on('leakUpdate', this._handlers.leakUpdate);
+    s.on('enemyLeaked', this._handlers.enemyLeaked);
     s.on('gameOver', this._handlers.gameOver);
     s.on('returnToLobby', this._handlers.returnToLobby);
 
@@ -128,21 +148,23 @@ export class GameScene extends Phaser.Scene {
     this.events.once('shutdown', () => this.cleanup());
   }
 
-  showDefeat() {
+  showGameOver() {
     if (this.gameEnded) return;
     this.gameEnded = true;
 
-    // Dark overlay + big red DEFEAT text.
+    this.playSfx('sfx_gameover', 0.6);
+
+    // Dark overlay + big red GAME OVER text.
     this.add.rectangle(640, 360, 1280, 720, 0x000000, 0.55).setDepth(199);
-    this.add.text(640, 340, 'DEFEAT', {
-      fontSize: '110px',
+    this.add.text(640, 340, 'GAME OVER', {
+      fontSize: '100px',
       color: '#ff2222',
       fontFamily: 'monospace',
       fontStyle: 'bold',
       stroke: '#000000',
       strokeThickness: 8,
     }).setOrigin(0.5).setDepth(200);
-    this.add.text(640, 430, 'Återgår till lobbyn...', {
+    this.add.text(640, 430, 'Too many enemies escaped — returning to lobby...', {
       fontSize: '22px',
       color: '#ffffff',
       fontFamily: 'monospace',
@@ -156,13 +178,14 @@ export class GameScene extends Phaser.Scene {
       s.off('gamePlayerLeft', this._handlers.gamePlayerLeft);
       s.off('weaponEquipped', this._handlers.onWeaponChange);
       s.off('weaponSwitched', this._handlers.onWeaponChange);
+      s.off('leakUpdate', this._handlers.leakUpdate);
+      s.off('enemyLeaked', this._handlers.enemyLeaked);
       s.off('gameOver', this._handlers.gameOver);
       s.off('returnToLobby', this._handlers.returnToLobby);
     }
     this.enemySystem?.destroy();
     this.bulletSystem?.destroy();
     this.weaponSystem?.destroy();
-    this.healthUI?.destroy();
     this.waveUI?.destroy();
     this.shopUI?.destroy();
     this.goldUI?.destroy();
@@ -229,8 +252,6 @@ export class GameScene extends Phaser.Scene {
     const entry = { sprite, nameText, weaponSprite, isLocal };
     this.players[playerData.id] = entry;
     this.positionWeapon(entry);
-
-    this.healthUI.registerPlayerSprite(playerData.id, sprite, isLocal);
   }
 
   // Place the weapon sprite at the player's right hand (always faces right).
@@ -277,13 +298,18 @@ export class GameScene extends Phaser.Scene {
       this.positionWeapon(local);
     }
 
-    if (body.velocity.x !== 0 || body.velocity.y !== 0) {
+    const moving = body.velocity.x !== 0 || body.velocity.y !== 0;
+    if (moving) {
       this.socket.emitPlayerMove(this.localSprite.x, this.localSprite.y);
+      // Footstep ticks while moving (throttled).
+      if (time - (this._lastStep || 0) > 260) {
+        this._lastStep = time;
+        this.playSfx('sfx_move', 0.18);
+      }
     }
 
     this.enemySystem.update();
     this.bulletSystem.update(delta);
     this.weaponSystem.update();
-    this.healthUI.updateBarPositions();
   }
 }

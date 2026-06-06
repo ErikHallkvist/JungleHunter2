@@ -33,7 +33,7 @@ export class LobbyScene extends Phaser.Scene {
 
     // Show our name straight away when reusing (assignedName won't fire again).
     if (this.myName) {
-      this.nameText.setText(`Du spelar som: ${this.myName}`);
+      this.nameText.setText(`Playing as: ${this.myName}`);
       this.nameText.setColor('#e2b714');
     }
 
@@ -65,7 +65,7 @@ export class LobbyScene extends Phaser.Scene {
 
     this.add.rectangle(panelX, panelY - panelH / 2 + 55, panelW - 40, 1, 0x333355);
 
-    this.nameText = this.add.text(panelX, panelY - panelH / 2 + 85, 'Ansluter...', {
+    this.nameText = this.add.text(panelX, panelY - panelH / 2 + 85, 'Connecting...', {
       fontSize: '16px',
       color: '#aaaaaa',
       fontFamily: 'monospace',
@@ -96,7 +96,7 @@ export class LobbyScene extends Phaser.Scene {
   registerSocketEvents() {
     this.socket.onAssignedName((name) => {
       this.myName = name;
-      this.nameText.setText(`Du spelar som: ${name}`);
+      this.nameText.setText(`Playing as: ${name}`);
       this.nameText.setColor('#e2b714');
     });
 
@@ -127,7 +127,7 @@ export class LobbyScene extends Phaser.Scene {
 
       const row = this.add.rectangle(this.listX, y, this.panelW - 60, 30, isMe ? 0x0f3460 : 0x1e1e3f, 0.8);
       const dot = this.add.circle(this.listX - 100, y, 5, isMe ? 0xe2b714 : 0x4caf50);
-      const label = this.add.text(this.listX - 85, y, `${player.name}${isMe ? '  (dig)' : ''}`, {
+      const label = this.add.text(this.listX - 85, y, `${player.name}${isMe ? '  (you)' : ''}`, {
         fontSize: '16px',
         color: isMe ? '#e2b714' : WHITE,
         fontFamily: 'monospace',

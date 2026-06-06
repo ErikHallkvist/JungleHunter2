@@ -38,11 +38,11 @@ export class ShopUI {
     const panel = this.scene.add.rectangle(640, 362, 1180, 600, 0x10182e, 0.97)
       .setStrokeStyle(2, 0x0f3460).setDepth(60);
 
-    const title = this.scene.add.text(640, 95, 'VAPENSHOP', {
+    const title = this.scene.add.text(640, 95, 'WEAPON SHOP', {
       fontSize: '30px', color: '#e2b714', fontFamily: 'monospace', fontStyle: 'bold',
     }).setOrigin(0.5).setDepth(62);
 
-    this.goldText = this.scene.add.text(640, 130, 'Guld: 0', {
+    this.goldText = this.scene.add.text(640, 130, 'Gold: 0', {
       fontSize: '18px', color: '#e2b714', fontFamily: 'monospace',
     }).setOrigin(0.5).setDepth(62);
 
@@ -70,7 +70,7 @@ export class ShopUI {
       fontSize: '16px', color: '#ffffff', fontFamily: 'monospace', fontStyle: 'bold',
     }).setOrigin(0.5).setDepth(62).setAlpha(0);
 
-    const closeHint = this.scene.add.text(640, 652, 'Tryck E för att stänga · hjul/siffror byter vapen', {
+    const closeHint = this.scene.add.text(640, 652, 'Press E to close · wheel / number keys switch weapon', {
       fontSize: '13px', color: '#666666', fontFamily: 'monospace',
     }).setOrigin(0.5).setDepth(62);
 
@@ -88,7 +88,7 @@ export class ShopUI {
     this.socket.socket.on('goldUpdate', ({ playerId, gold }) => {
       if (playerId === this.socket.id) {
         this.currentGold = gold;
-        this.goldText?.setText(`Guld: ${gold}`);
+        this.goldText?.setText(`Gold: ${gold}`);
         this.refreshItemStates();
       }
     });
@@ -98,11 +98,11 @@ export class ShopUI {
         this.ownedWeapons = weapons ? weapons.slice() : [...this.ownedWeapons, weaponId];
         this.activeWeapon = weaponId;
         this.currentGold = newGold;
-        this.goldText?.setText(`Guld: ${newGold}`);
-        this.showFeedback(`Köpte ${getWeapon(weaponId).name}!`, '#00ff88');
+        this.goldText?.setText(`Gold: ${newGold}`);
+        this.showFeedback(`Bought ${getWeapon(weaponId).name}!`, '#00ff88');
         this.refreshItemStates();
       } else {
-        this.showFeedback(error === 'Not enough gold' ? 'För lite guld!' : (error || 'Köp misslyckades'), '#ff4444');
+        this.showFeedback(error === 'Not enough gold' ? 'Not enough gold!' : (error || 'Purchase failed'), '#ff4444');
       }
     });
 
@@ -137,7 +137,7 @@ export class ShopUI {
 
     const btn = this.scene.add.rectangle(x0 + 470, y, 86, 30, 0x4caf50)
       .setDepth(62).setInteractive({ useHandCursor: true });
-    const btnText = this.scene.add.text(x0 + 470, y, 'KÖP', {
+    const btnText = this.scene.add.text(x0 + 470, y, 'BUY', {
       fontSize: '13px', color: '#ffffff', fontFamily: 'monospace', fontStyle: 'bold',
     }).setOrigin(0.5).setDepth(63);
 
@@ -184,16 +184,16 @@ export class ShopUI {
 
       if (active) {
         row.btn.setFillStyle(0xe2b714).disableInteractive();
-        row.btnText.setText('AKTIV').setColor('#10182e');
+        row.btnText.setText('ACTIVE').setColor('#10182e');
       } else if (owned) {
         row.btn.setFillStyle(0x2e6fb0).setInteractive({ useHandCursor: true });
-        row.btnText.setText('UTRUSTA').setColor('#ffffff');
+        row.btnText.setText('EQUIP').setColor('#ffffff');
       } else if (affordable) {
         row.btn.setFillStyle(0x4caf50).setInteractive({ useHandCursor: true });
-        row.btnText.setText('KÖP').setColor('#ffffff');
+        row.btnText.setText('BUY').setColor('#ffffff');
       } else {
         row.btn.setFillStyle(0x444444).disableInteractive();
-        row.btnText.setText('KÖP').setColor('#888888');
+        row.btnText.setText('BUY').setColor('#888888');
       }
     }
   }

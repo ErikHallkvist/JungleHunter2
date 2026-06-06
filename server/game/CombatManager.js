@@ -9,18 +9,9 @@ export class CombatManager {
     this.getPlayers = getPlayers;
     this.shopManager = shopManager;
     this.activeBullets = new Map(); // bulletId -> bullet object
-    this.playerHp = new Map();      // socketId -> currentHp
-    this.onPlayerDied = null;       // callback(playerId) — set externally
-  }
-
-  initPlayer(socketId) {
-    this.playerHp.set(socketId, 100);
   }
 
   handleShot(socketId, data) {
-    // Dead players can't shoot
-    if ((this.playerHp.get(socketId) ?? 100) <= 0) return;
-
     const { originX, originY } = data;
 
     // Server is authoritative about which weapon the player actually holds.
@@ -89,38 +80,7 @@ export class CombatManager {
     this.activeBullets.delete(bulletId);
   }
 
-  handlePlayerDamaged(playerId, damage) {
-    const players = this.getPlayers();
-    let socketId = null;
-
-    for (const [sid, player] of Object.entries(players)) {
-      if (player.id === playerId) {
-        socketId = sid;
-        break;
-      }
-    }
-
-    if (!socketId) return;
-
-    const current = this.playerHp.get(socketId) ?? 100;
-    if (current <= 0) return; // already dead
-    const newHp = Math.max(0, current - damage);
-    this.playerHp.set(socketId, newHp);
-
-    this.io.emit('playerHpUpdated', { id: playerId, hp: newHp, maxHp: 100 });
-
-    if (newHp <= 0) {
-      this.io.emit('playerDied', { id: playerId });
-      if (this.onPlayerDied) this.onPlayerDied(playerId);
-    }
-  }
-
-  removePlayer(socketId) {
-    this.playerHp.delete(socketId);
-  }
-
   reset() {
     this.activeBullets.clear();
-    this.playerHp.clear();
   }
 }

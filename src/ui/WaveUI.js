@@ -74,10 +74,12 @@ export class WaveUI {
       });
     });
 
-    socket.socket.on('enemyDied', () => {
+    const decrement = () => {
       this.aliveEnemies = Math.max(0, (this.aliveEnemies || 0) - 1);
       this.enemyCountText.setText(`Enemies: ${this.aliveEnemies}`);
-    });
+    };
+    socket.socket.on('enemyDied', decrement);
+    socket.socket.on('enemyLeaked', decrement); // escaped enemies also leave the field
 
     socket.socket.on('enemySpawned', () => {
       this.aliveEnemies = (this.aliveEnemies || 0) + 1;
@@ -91,6 +93,7 @@ export class WaveUI {
       this.socket.socket.off('waveCountdown');
       this.socket.socket.off('waveComplete');
       this.socket.socket.off('enemyDied');
+      this.socket.socket.off('enemyLeaked');
       this.socket.socket.off('enemySpawned');
     }
 
