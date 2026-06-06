@@ -1,4 +1,6 @@
+import Phaser from 'phaser';
 import { shopWeapons, getWeapon } from '../../shared/weapons.js';
+import { COLORS, BTN, panel, heading, label, button } from './theme.js';
 
 export class ShopUI {
   constructor(scene, socket) {
@@ -25,36 +27,27 @@ export class ShopUI {
     this.rows = [];
 
     // Shop toggle button (always visible, bottom-right)
-    this.shopBtn = this.scene.add.text(1264, 690, '[E] SHOP', {
-      fontSize: '16px',
-      color: '#e2b714',
-      fontFamily: 'monospace',
-      backgroundColor: '#16213e',
-      padding: { x: 8, y: 4 },
-    }).setOrigin(1, 1).setDepth(120).setInteractive({ useHandCursor: true });
-    this.shopBtn.on('pointerdown', () => this.toggle());
+    this.shopBtn = button(this.scene, 1206, 686, 124, 40, '[E] SHOP', {
+      tint: BTN.gold, fontSize: 12, color: '#10182e', depth: 120,
+      onClick: () => this.toggle(),
+    });
 
     // ── Panel ──────────────────────────────────────────────────────────────
-    const panel = this.scene.add.rectangle(640, 362, 1180, 600, 0x10182e, 0.97)
-      .setStrokeStyle(2, 0x0f3460).setDepth(60);
+    const pnl = panel(this.scene, 640, 362, 1180, 600, { depth: 60 });
 
-    const title = this.scene.add.text(640, 95, 'WEAPON SHOP', {
-      fontSize: '30px', color: '#e2b714', fontFamily: 'monospace', fontStyle: 'bold',
-    }).setOrigin(0.5).setDepth(62);
+    const title = heading(this.scene, 640, 96, 'WEAPON SHOP', { size: 26, color: COLORS.gold }).setDepth(62);
 
-    this.goldText = this.scene.add.text(640, 130, 'Gold: 0', {
-      fontSize: '18px', color: '#e2b714', fontFamily: 'monospace',
-    }).setOrigin(0.5).setDepth(62);
+    this.goldText = label(this.scene, 640, 134, 'GOLD: 0', { size: 24, color: COLORS.gold }).setDepth(62);
 
-    const divider = this.scene.add.rectangle(640, 152, 1140, 2, 0x0f3460, 1).setDepth(62);
+    const divider = this.scene.add.rectangle(640, 156, 1140, 2, 0x33406a, 1).setDepth(62);
 
-    this.elements.push(panel, title, this.goldText, divider);
+    this.elements.push(pnl, title, this.goldText, divider);
 
     // ── Weapon rows (two columns) ────────────────────────────────────────────
     const items = shopWeapons();
     const COL_X = [60, 645];
     const ROW_H = 45;
-    const TOP = 178;
+    const TOP = 182;
     const PER_COL = Math.ceil(items.length / 2);
 
     items.forEach((w, i) => {
@@ -66,13 +59,11 @@ export class ShopUI {
     });
 
     // Feedback + close hint
-    this.feedbackText = this.scene.add.text(640, 632, '', {
-      fontSize: '16px', color: '#ffffff', fontFamily: 'monospace', fontStyle: 'bold',
-    }).setOrigin(0.5).setDepth(62).setAlpha(0);
+    this.feedbackText = label(this.scene, 640, 632, '', { size: 22, color: COLORS.white }).setDepth(62).setAlpha(0);
 
-    const closeHint = this.scene.add.text(640, 652, 'Press E to close · wheel / number keys switch weapon', {
-      fontSize: '13px', color: '#666666', fontFamily: 'monospace',
-    }).setOrigin(0.5).setDepth(62);
+    const closeHint = label(this.scene, 640, 656, 'Press E to close   -   wheel / number keys switch weapon', {
+      size: 18, color: COLORS.dim,
+    }).setDepth(62);
 
     this.elements.push(this.feedbackText, closeHint);
 
@@ -88,7 +79,7 @@ export class ShopUI {
     this.socket.socket.on('goldUpdate', ({ playerId, gold }) => {
       if (playerId === this.socket.id) {
         this.currentGold = gold;
-        this.goldText?.setText(`Gold: ${gold}`);
+        this.goldText?.setText(`GOLD: ${gold}`);
         this.refreshItemStates();
       }
     });
@@ -98,12 +89,12 @@ export class ShopUI {
         this.ownedWeapons = weapons ? weapons.slice() : [...this.ownedWeapons, weaponId];
         this.activeWeapon = weaponId;
         this.currentGold = newGold;
-        this.goldText?.setText(`Gold: ${newGold}`);
-        this.showFeedback(`Bought ${getWeapon(weaponId).name}!`, '#00ff88');
+        this.goldText?.setText(`GOLD: ${newGold}`);
+        this.showFeedback(`Bought ${getWeapon(weaponId).name}!`, COLORS.green);
         this.scene.playSfx?.('sfx_cash', 0.55);
         this.refreshItemStates();
       } else {
-        this.showFeedback(error === 'Not enough gold' ? 'Not enough gold!' : (error || 'Purchase failed'), '#ff4444');
+        this.showFeedback(error === 'Not enough gold' ? 'Not enough gold!' : (error || 'Purchase failed'), COLORS.red);
       }
     });
 
@@ -119,32 +110,29 @@ export class ShopUI {
   }
 
   buildRow(w, x0, y) {
-    const icon = this.scene.add.image(x0 + 28, y, w.icon)
-      .setDisplaySize(44, 20).setDepth(62);
+    const icon = this.scene.add.image(x0 + 30, y, w.icon)
+      .setDisplaySize(56, 25).setDepth(62);
 
-    const name = this.scene.add.text(x0 + 58, y - 9, w.name, {
-      fontSize: '15px', color: '#ffffff', fontFamily: 'monospace',
-    }).setOrigin(0, 0.5).setDepth(62);
+    const name = label(this.scene, x0 + 64, y - 9, w.name, {
+      size: 21, color: COLORS.white, origin: [0, 0.5],
+    }).setDepth(62);
 
-    const stats = this.scene.add.text(
-      x0 + 58, y + 9,
-      `DMG ${w.damage} · ${w.fireRate}ms${w.pellets > 1 ? ` · x${w.pellets}` : ''}`,
-      { fontSize: '11px', color: '#8aa', fontFamily: 'monospace' }
-    ).setOrigin(0, 0.5).setDepth(62);
+    const stats = label(
+      this.scene, x0 + 64, y + 11,
+      `DMG ${w.damage}  ${w.fireRate}ms${w.pellets > 1 ? `  x${w.pellets}` : ''}`,
+      { size: 16, color: COLORS.dim, origin: [0, 0.5] }
+    ).setDepth(62);
 
-    const price = this.scene.add.text(x0 + 380, y, `${w.price}g`, {
-      fontSize: '15px', color: '#e2b714', fontFamily: 'monospace',
-    }).setOrigin(1, 0.5).setDepth(62);
+    const price = label(this.scene, x0 + 380, y, `${w.price}g`, {
+      size: 21, color: COLORS.gold, origin: [1, 0.5],
+    }).setDepth(62);
 
-    const btn = this.scene.add.rectangle(x0 + 470, y, 86, 30, 0x4caf50)
-      .setDepth(62).setInteractive({ useHandCursor: true });
-    const btnText = this.scene.add.text(x0 + 470, y, 'BUY', {
-      fontSize: '13px', color: '#ffffff', fontFamily: 'monospace', fontStyle: 'bold',
-    }).setOrigin(0.5).setDepth(63);
+    const btn = button(this.scene, x0 + 470, y, 90, 32, 'BUY', {
+      tint: BTN.green, fontSize: 11, depth: 62,
+      onClick: () => this.onRowClick(w.id),
+    });
 
-    btn.on('pointerdown', () => this.onRowClick(w.id));
-
-    const row = { weapon: w, btn, btnText, price, parts: [icon, name, stats, price, btn, btnText] };
+    const row = { weapon: w, btn, price, parts: [icon, name, stats, price, btn.bg, btn.txt] };
     this.rows.push(row);
   }
 
@@ -184,17 +172,17 @@ export class ShopUI {
       const affordable = this.currentGold >= row.weapon.price;
 
       if (active) {
-        row.btn.setFillStyle(0xe2b714).disableInteractive();
-        row.btnText.setText('ACTIVE').setColor('#10182e');
+        row.btn.setTint(BTN.gold).disable();
+        row.btn.setText('ACTIVE').setTextColor('#10182e');
       } else if (owned) {
-        row.btn.setFillStyle(0x2e6fb0).setInteractive({ useHandCursor: true });
-        row.btnText.setText('EQUIP').setColor('#ffffff');
+        row.btn.setTint(BTN.blue).enable();
+        row.btn.setText('EQUIP').setTextColor(COLORS.white);
       } else if (affordable) {
-        row.btn.setFillStyle(0x4caf50).setInteractive({ useHandCursor: true });
-        row.btnText.setText('BUY').setColor('#ffffff');
+        row.btn.setTint(BTN.green).enable();
+        row.btn.setText('BUY').setTextColor(COLORS.white);
       } else {
-        row.btn.setFillStyle(0x444444).disableInteractive();
-        row.btnText.setText('BUY').setColor('#888888');
+        row.btn.setTint(BTN.gray).disable();
+        row.btn.setText('BUY').setTextColor(COLORS.dim);
       }
     }
   }

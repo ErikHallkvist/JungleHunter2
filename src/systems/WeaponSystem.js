@@ -1,4 +1,5 @@
 import { getWeapon } from '../../shared/weapons.js';
+import { FONT, COLORS } from '../ui/theme.js';
 
 export class WeaponSystem {
   constructor(scene, socket, myName) {
@@ -52,11 +53,11 @@ export class WeaponSystem {
 
     // Current-weapon HUD (bottom centre).
     this.hudText = this.scene.add.text(640, 695, '', {
-      fontSize: '15px',
-      color: '#ffffff',
-      fontFamily: 'monospace',
+      fontSize: '22px',
+      color: COLORS.white,
+      fontFamily: FONT,
       backgroundColor: '#000000aa',
-      padding: { x: 8, y: 3 },
+      padding: { x: 8, y: 2 },
     }).setOrigin(0.5, 1).setDepth(100);
     this.updateHud();
   }
@@ -119,11 +120,11 @@ export class WeaponSystem {
     const w = getWeapon(weaponType);
     const notif = this.scene.add
       .text(640, 150, `Equipped: ${w.name}!`, {
-        fontSize: '20px',
-        color: '#ffe27a',
-        fontFamily: 'monospace',
+        fontSize: '24px',
+        color: COLORS.gold,
+        fontFamily: FONT,
         backgroundColor: '#000000aa',
-        padding: { x: 10, y: 5 },
+        padding: { x: 10, y: 4 },
       })
       .setOrigin(0.5)
       .setDepth(100);

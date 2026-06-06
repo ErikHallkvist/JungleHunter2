@@ -1,15 +1,9 @@
 import Phaser from 'phaser';
 import { SocketManager } from '../network/SocketManager.js';
+import { COLORS, BTN, preloadTheme, panel, heading, label, button } from '../ui/theme.js';
 
 const W = 1280;
 const H = 720;
-const BG = 0x1a1a2e;
-const PANEL_BG = 0x16213e;
-const ACCENT = 0x0f3460;
-const GREEN = 0x4caf50;
-const GRAY = 0x555555;
-const WHITE = '#ffffff';
-const GRAY_TEXT = '#888888';
 
 export class LobbyScene extends Phaser.Scene {
   constructor() {
@@ -25,6 +19,9 @@ export class LobbyScene extends Phaser.Scene {
 
   preload() {
     this.load.audio('music_lobby', 'assets/sounds/music_lobby.wav');
+    this.load.image('jungle', 'assets/background/jungle.png');
+    this.load.image('player', 'assets/sprites/player.png');
+    preloadTheme(this);
   }
 
   create() {
@@ -41,70 +38,51 @@ export class LobbyScene extends Phaser.Scene {
     // Show our name straight away when reusing (assignedName won't fire again).
     if (this.myName) {
       this.nameText.setText(`Playing as: ${this.myName}`);
-      this.nameText.setColor('#e2b714');
+      this.nameText.setColor(COLORS.gold);
     }
 
     this.registerSocketEvents();
   }
 
   buildUI() {
-    this.add.rectangle(W / 2, H / 2, W, H, BG);
+    // Tiled jungle background + dark scrim for readability.
+    this.add.tileSprite(W / 2, H / 2, W, H, 'jungle');
+    this.add.rectangle(W / 2, H / 2, W, H, 0x0a0e1a, 0.55);
 
-    this.add.text(W / 2, 80, 'JUNGLE HUNTER 2', {
-      fontSize: '52px',
-      fontStyle: 'bold',
-      color: '#e2b714',
-      fontFamily: 'monospace',
-    }).setOrigin(0.5);
+    // Title with a little hunter sprite either side.
+    heading(this, W / 2, 84, 'JUNGLE HUNTER 2', { size: 40, color: COLORS.gold });
+    this.add.image(W / 2 - 320, 84, 'player').setScale(1.1);
+    this.add.image(W / 2 + 320, 84, 'player').setScale(1.1).setFlipX(true);
 
     const panelX = W / 2;
-    const panelY = H / 2 + 20;
-    const panelW = 500;
-    const panelH = 400;
-    this.add.rectangle(panelX, panelY, panelW, panelH, PANEL_BG, 0.95).setStrokeStyle(2, ACCENT);
+    const panelY = H / 2 + 30;
+    const panelW = 520;
+    const panelH = 410;
+    panel(this, panelX, panelY, panelW, panelH);
 
-    this.add.text(panelX, panelY - panelH / 2 + 30, 'LOBBY', {
-      fontSize: '22px',
-      fontStyle: 'bold',
-      color: '#aaaaaa',
-      fontFamily: 'monospace',
-    }).setOrigin(0.5);
+    heading(this, panelX, panelY - panelH / 2 + 34, 'LOBBY', { size: 18, color: COLORS.dim });
+    this.add.rectangle(panelX, panelY - panelH / 2 + 58, panelW - 60, 2, 0x33406a);
 
-    this.add.rectangle(panelX, panelY - panelH / 2 + 55, panelW - 40, 1, 0x333355);
+    this.nameText = label(this, panelX, panelY - panelH / 2 + 88, 'Connecting...', {
+      size: 22, color: COLORS.dim,
+    });
 
-    this.nameText = this.add.text(panelX, panelY - panelH / 2 + 85, 'Connecting...', {
-      fontSize: '16px',
-      color: '#aaaaaa',
-      fontFamily: 'monospace',
-    }).setOrigin(0.5);
-
-    this.listStartY = panelY - panelH / 2 + 120;
+    this.listStartY = panelY - panelH / 2 + 124;
     this.listX = panelX;
     this.panelW = panelW;
 
-    const btnY = panelY + panelH / 2 - 45;
-    this.btnBg = this.add.rectangle(panelX, btnY, 300, 52, GREEN).setInteractive({ useHandCursor: true });
-    this.btnText = this.add.text(panelX, btnY, 'START GAME', {
-      fontSize: '20px',
-      fontStyle: 'bold',
-      color: WHITE,
-      fontFamily: 'monospace',
-    }).setOrigin(0.5);
-
-    this.btnBg.on('pointerdown', () => {
-      if (!this.gameInProgress) this.socket.emitStartGame();
+    const btnY = panelY + panelH / 2 - 48;
+    this.startBtn = button(this, panelX, btnY, 320, 56, 'START GAME', {
+      tint: BTN.green, fontSize: 18,
+      onClick: () => { if (!this.gameInProgress) this.socket.emitStartGame(); },
     });
-    this.btnBg.on('pointerover', () => {
-      if (!this.gameInProgress) this.btnBg.setFillStyle(0x66bb6a);
-    });
-    this.btnBg.on('pointerout', () => this.refreshButton());
   }
 
   registerSocketEvents() {
     this.socket.onAssignedName((name) => {
       this.myName = name;
       this.nameText.setText(`Playing as: ${name}`);
-      this.nameText.setColor('#e2b714');
+      this.nameText.setColor(COLORS.gold);
     });
 
     this.socket.onLobbyUpdate(({ players, gameInProgress }) => {
@@ -130,32 +108,27 @@ export class LobbyScene extends Phaser.Scene {
     this.playerItems = [];
 
     this.players.forEach((player, i) => {
-      const y = this.listStartY + i * 36;
+      const y = this.listStartY + i * 38;
       const isMe = player.name === this.myName;
 
-      const row = this.add.rectangle(this.listX, y, this.panelW - 60, 30, isMe ? 0x0f3460 : 0x1e1e3f, 0.8);
-      const dot = this.add.circle(this.listX - 100, y, 5, isMe ? 0xe2b714 : 0x4caf50);
-      const label = this.add.text(this.listX - 85, y, `${player.name}${isMe ? '  (you)' : ''}`, {
-        fontSize: '16px',
-        color: isMe ? '#e2b714' : WHITE,
-        fontFamily: 'monospace',
-      }).setOrigin(0, 0.5);
+      const row = this.add.rectangle(this.listX, y, this.panelW - 70, 32, isMe ? 0x1c2c52 : 0x141a30, 0.85)
+        .setStrokeStyle(1, isMe ? 0x3a5aa0 : 0x26304e);
+      const dot = this.add.rectangle(this.listX - 110, y, 8, 8, isMe ? 0xe2b714 : 0x56aa4e);
+      const name = label(this, this.listX - 92, y, `${player.name}${isMe ? '  (you)' : ''}`, {
+        size: 22, color: isMe ? COLORS.gold : COLORS.white, origin: [0, 0.5],
+      });
 
-      this.playerItems.push(row, dot, label);
+      this.playerItems.push(row, dot, name);
     });
   }
 
   refreshButton() {
     if (this.gameInProgress) {
-      this.btnBg.setFillStyle(GRAY).disableInteractive();
-      this.btnText.setText('WAITING FOR GAME TO FINISH');
-      this.btnText.setFontSize(13);
-      this.btnText.setColor(GRAY_TEXT);
+      this.startBtn.setTint(BTN.gray).disable();
+      this.startBtn.setText('WAITING...').setTextColor(COLORS.dim);
     } else {
-      this.btnBg.setFillStyle(GREEN).setInteractive({ useHandCursor: true });
-      this.btnText.setText('START GAME');
-      this.btnText.setFontSize(20);
-      this.btnText.setColor(WHITE);
+      this.startBtn.setTint(BTN.green).enable();
+      this.startBtn.setText('START GAME').setTextColor(COLORS.white);
     }
   }
 }

@@ -1,3 +1,5 @@
+import { FONT, COLORS } from './theme.js';
+
 export class GoldUI {
   constructor(scene) {
     this.scene = scene;
@@ -12,14 +14,13 @@ export class GoldUI {
     this.myPlayerId = myPlayerId;
 
     // Gold display bottom-left
-    this.goldText = this.scene.add.text(20, 650, 'GOLD: 0', {
-      fontSize: '18px',
-      color: '#e2b714',
-      fontFamily: 'monospace',
-      fontStyle: 'bold',
+    this.goldText = this.scene.add.text(20, 648, 'GOLD: 0', {
+      fontSize: '26px',
+      color: COLORS.gold,
+      fontFamily: FONT,
       backgroundColor: '#00000066',
-      padding: { x: 6, y: 3 }
-    });
+      padding: { x: 6, y: 2 }
+    }).setDepth(100);
 
     socket.socket.on('goldUpdate', ({ playerId, gold, gained }) => {
       if (playerId !== this.myPlayerId) return;
@@ -33,12 +34,11 @@ export class GoldUI {
   }
 
   showGoldGained(amount) {
-    const ft = this.scene.add.text(110, 650, `+${amount}`, {
-      fontSize: '16px',
-      color: '#e2b714',
-      fontFamily: 'monospace',
-      fontStyle: 'bold'
-    });
+    const ft = this.scene.add.text(120, 648, `+${amount}`, {
+      fontSize: '22px',
+      color: COLORS.gold,
+      fontFamily: FONT,
+    }).setDepth(100);
 
     this.scene.tweens.add({
       targets: ft,

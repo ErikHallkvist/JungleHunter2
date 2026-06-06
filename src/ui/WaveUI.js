@@ -1,3 +1,5 @@
+import { FONT, FONT_HEAD, COLORS } from './theme.js';
+
 export class WaveUI {
   constructor(scene) {
     this.scene = scene;
@@ -14,41 +16,40 @@ export class WaveUI {
     this.socket = socket;
 
     this.waveText = this.scene.add
-      .text(640, 20, 'WAVE 0', {
-        fontSize: '22px',
-        color: '#ffffff',
-        fontFamily: 'monospace',
+      .text(640, 22, 'WAVE 0', {
+        fontSize: '16px',
+        color: COLORS.white,
+        fontFamily: FONT_HEAD,
       })
-      .setOrigin(0.5);
+      .setOrigin(0.5).setDepth(100);
 
-    this.enemyCountText = this.scene.add.text(20, 20, 'Enemies: 0', {
-      fontSize: '16px',
-      color: '#ff4444',
-      fontFamily: 'monospace',
-    });
+    this.enemyCountText = this.scene.add.text(20, 18, 'Enemies: 0', {
+      fontSize: '22px',
+      color: COLORS.red,
+      fontFamily: FONT,
+    }).setDepth(100);
 
     this.countdownText = this.scene.add
       .text(640, 360, '', {
-        fontSize: '48px',
-        color: '#e2b714',
-        fontFamily: 'monospace',
-        fontStyle: 'bold',
+        fontSize: '30px',
+        color: COLORS.gold,
+        fontFamily: FONT_HEAD,
       })
       .setOrigin(0.5)
-      .setAlpha(0);
+      .setAlpha(0).setDepth(100);
 
     this.flashText = this.scene.add
       .text(640, 200, '', {
-        fontSize: '36px',
-        color: '#ffffff',
-        fontFamily: 'monospace',
+        fontSize: '28px',
+        color: COLORS.white,
+        fontFamily: FONT_HEAD,
       })
       .setOrigin(0.5)
-      .setAlpha(0);
+      .setAlpha(0).setDepth(100);
 
     socket.socket.on('waveStart', ({ waveNumber, enemyCount, enemyName }) => {
       this.aliveEnemies = 0;
-      this.waveText.setText(`WAVE ${waveNumber}${enemyName ? ` — ${enemyName}` : ''}`);
+      this.waveText.setText(`WAVE ${waveNumber}${enemyName ? ` - ${enemyName}` : ''}`);
       this.enemyCountText.setText(`Enemies: ${enemyCount}`);
       this.countdownText.setAlpha(0);
       this.flashText.setText(`WAVE ${waveNumber}!`).setAlpha(1);

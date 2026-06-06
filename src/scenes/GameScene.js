@@ -7,6 +7,7 @@ import { BulletSystem } from '../systems/BulletSystem.js';
 import { WaveUI } from '../ui/WaveUI.js';
 import { ShopUI } from '../ui/ShopUI.js';
 import { GoldUI } from '../ui/GoldUI.js';
+import { FONT, FONT_HEAD, COLORS, preloadTheme } from '../ui/theme.js';
 
 const ROOM = { x: 32, y: 32, width: 1216, height: 656 };
 export const PLAYER_W = 36;
@@ -27,6 +28,7 @@ export class GameScene extends Phaser.Scene {
   preload() {
     this.load.image('player', 'assets/sprites/player.png');
     this.load.image('jungle', 'assets/background/jungle.png');
+    preloadTheme(this);
 
     // All 40 enemy sprites and hit sounds
     for (const e of ENEMY_TYPES) {
@@ -91,11 +93,10 @@ export class GameScene extends Phaser.Scene {
 
     // Escaped-enemy counter (top-right). Game over when it reaches the max.
     this.leakMax = 10;
-    this.leakText = this.add.text(1260, 20, 'Escaped: 0 / 10', {
-      fontSize: '18px',
-      color: '#ff5555',
-      fontFamily: 'monospace',
-      fontStyle: 'bold',
+    this.leakText = this.add.text(1260, 18, 'Escaped: 0 / 10', {
+      fontSize: '22px',
+      color: COLORS.red,
+      fontFamily: FONT,
     }).setOrigin(1, 0).setDepth(100);
 
     this.waveUI = new WaveUI(this);
@@ -168,19 +169,18 @@ export class GameScene extends Phaser.Scene {
     this.playSfx('sfx_gameover', 0.6);
 
     // Dark overlay + big red GAME OVER text.
-    this.add.rectangle(640, 360, 1280, 720, 0x000000, 0.55).setDepth(199);
-    this.add.text(640, 340, 'GAME OVER', {
-      fontSize: '100px',
-      color: '#ff2222',
-      fontFamily: 'monospace',
-      fontStyle: 'bold',
+    this.add.rectangle(640, 360, 1280, 720, 0x000000, 0.6).setDepth(199);
+    this.add.text(640, 332, 'GAME OVER', {
+      fontSize: '64px',
+      color: COLORS.red,
+      fontFamily: FONT_HEAD,
       stroke: '#000000',
       strokeThickness: 8,
     }).setOrigin(0.5).setDepth(200);
-    this.add.text(640, 430, 'Too many enemies escaped — returning to lobby...', {
-      fontSize: '22px',
-      color: '#ffffff',
-      fontFamily: 'monospace',
+    this.add.text(640, 412, 'Too many enemies escaped - returning to lobby...', {
+      fontSize: '24px',
+      color: COLORS.white,
+      fontFamily: FONT,
     }).setOrigin(0.5).setDepth(200);
   }
 
@@ -248,9 +248,9 @@ export class GameScene extends Phaser.Scene {
       playerData.y - PLAYER_H / 2 - 8,
       playerData.name,
       {
-        fontSize: '13px',
-        color: isLocal ? '#00ff88' : '#aaddff',
-        fontFamily: 'monospace',
+        fontSize: '18px',
+        color: isLocal ? COLORS.green : COLORS.blue,
+        fontFamily: FONT,
         stroke: '#000000',
         strokeThickness: 3,
       }
