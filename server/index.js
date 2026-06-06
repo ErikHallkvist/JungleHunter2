@@ -28,6 +28,7 @@ const SPAWN_X_MAX = ROOM.x + 160;
 const lobby = {};
 const gamePlayers = {};
 let gameInProgress = false;
+let defeatTriggered = false;
 
 let enemyManager = null;
 let waveManager = null;
@@ -55,6 +56,24 @@ function initGame() {
   enemyManager.onMeleeDamage = (playerId, damage) => {
     combatManager.handlePlayerDamaged(playerId, damage);
   };
+
+  // Co-op fail state: the first player death ends the game for everyone.
+  combatManager.onPlayerDied = () => triggerDefeat();
+}
+
+function triggerDefeat() {
+  if (defeatTriggered) return; // only the FIRST death counts
+  defeatTriggered = true;
+
+  io.emit('gameOver', { reason: 'defeat' });
+  console.log('DEFEAT — en spelare dog, spelet avslutas');
+
+  // Give clients a few seconds to show DEFEAT, then send everyone to the lobby.
+  setTimeout(() => {
+    resetGame();
+    io.emit('returnToLobby');
+    broadcastLobbyUpdate();
+  }, 4000);
 }
 
 function resetGame() {
@@ -63,6 +82,7 @@ function resetGame() {
   shopManager?.reset();
   enemyManager?.clear();
   gameInProgress = false;
+  defeatTriggered = false;
   Object.keys(gamePlayers).forEach((k) => delete gamePlayers[k]);
 }
 
@@ -74,9 +94,15 @@ io.on('connection', (socket) => {
   socket.emit('assignedName', name);
   broadcastLobbyUpdate();
 
+  // A client returning to the lobby asks for the current state.
+  socket.on('requestLobby', () => {
+    socket.emit('lobbyUpdate', { players: Object.values(lobby), gameInProgress });
+  });
+
   socket.on('startGame', () => {
     if (gameInProgress) return;
     gameInProgress = true;
+    defeatTriggered = false;
 
     const players = Object.values(lobby);
     const count = players.length;

@@ -37,6 +37,17 @@ export class GameScene extends Phaser.Scene {
     for (const w of WEAPONS) {
       this.load.image(w.icon, `assets/sprites/${w.icon}.png`);
     }
+    // Weapon firing sounds (one per projectile type)
+    for (const type of Object.keys(PROJECTILES)) {
+      this.load.audio(`sfx_${type}`, `assets/sounds/sfx_${type}.wav`);
+    }
+  }
+
+  // Play a weapon's firing sound. volume lowered for other players' guns.
+  playShotSound(bulletType, mine = true) {
+    const key = `sfx_${bulletType}`;
+    if (!this.cache.audio.exists(key)) return;
+    this.sound.play(key, { volume: mine ? 0.45 : 0.22 });
   }
 
   create() {
@@ -75,31 +86,86 @@ export class GameScene extends Phaser.Scene {
     this.goldUI = new GoldUI(this);
     this.goldUI.init(this.socket, this.socket.id);
 
+    this.gameEnded = false;
     this.initialPlayerList.forEach((player) => this.spawnPlayer(player));
 
-    this.socket.socket.on('gamePlayerMoved', ({ id, x, y }) => {
-      const p = this.players[id];
-      if (p && id !== this.localId) {
-        p.sprite.setPosition(x, y);
-        p.nameText.setPosition(x, y - PLAYER_H / 2 - 8);
-        this.positionWeapon(p);
-      }
-    });
+    // Keep references so we can detach exactly these on shutdown.
+    this._handlers = {
+      gamePlayerMoved: ({ id, x, y }) => {
+        const p = this.players[id];
+        if (p && id !== this.localId) {
+          p.sprite.setPosition(x, y);
+          p.nameText.setPosition(x, y - PLAYER_H / 2 - 8);
+          this.positionWeapon(p);
+        }
+      },
+      gamePlayerLeft: (id) => {
+        const p = this.players[id];
+        if (p) {
+          p.sprite.destroy();
+          p.nameText.destroy();
+          p.weaponSprite?.destroy();
+          delete this.players[id];
+        }
+      },
+      // A player (anyone) changed their active weapon — update the visible gun.
+      onWeaponChange: ({ playerId, weaponId }) => this.setPlayerWeapon(playerId, weaponId),
+      gameOver: () => this.showDefeat(),
+      returnToLobby: () => {
+        this.scene.start('LobbyScene', { socket: this.socket, myName: this.myName });
+      },
+    };
 
-    this.socket.socket.on('gamePlayerLeft', (id) => {
-      const p = this.players[id];
-      if (p) {
-        p.sprite.destroy();
-        p.nameText.destroy();
-        p.weaponSprite?.destroy();
-        delete this.players[id];
-      }
-    });
+    const s = this.socket.socket;
+    s.on('gamePlayerMoved', this._handlers.gamePlayerMoved);
+    s.on('gamePlayerLeft', this._handlers.gamePlayerLeft);
+    s.on('weaponEquipped', this._handlers.onWeaponChange);
+    s.on('weaponSwitched', this._handlers.onWeaponChange);
+    s.on('gameOver', this._handlers.gameOver);
+    s.on('returnToLobby', this._handlers.returnToLobby);
 
-    // A player (anyone) changed their active weapon — update the visible gun.
-    const onWeaponChange = ({ playerId, weaponId }) => this.setPlayerWeapon(playerId, weaponId);
-    this.socket.socket.on('weaponEquipped', onWeaponChange);
-    this.socket.socket.on('weaponSwitched', onWeaponChange);
+    // Tear everything down cleanly when the scene stops (return to lobby).
+    this.events.once('shutdown', () => this.cleanup());
+  }
+
+  showDefeat() {
+    if (this.gameEnded) return;
+    this.gameEnded = true;
+
+    // Dark overlay + big red DEFEAT text.
+    this.add.rectangle(640, 360, 1280, 720, 0x000000, 0.55).setDepth(199);
+    this.add.text(640, 340, 'DEFEAT', {
+      fontSize: '110px',
+      color: '#ff2222',
+      fontFamily: 'monospace',
+      fontStyle: 'bold',
+      stroke: '#000000',
+      strokeThickness: 8,
+    }).setOrigin(0.5).setDepth(200);
+    this.add.text(640, 430, 'Återgår till lobbyn...', {
+      fontSize: '22px',
+      color: '#ffffff',
+      fontFamily: 'monospace',
+    }).setOrigin(0.5).setDepth(200);
+  }
+
+  cleanup() {
+    const s = this.socket?.socket;
+    if (s && this._handlers) {
+      s.off('gamePlayerMoved', this._handlers.gamePlayerMoved);
+      s.off('gamePlayerLeft', this._handlers.gamePlayerLeft);
+      s.off('weaponEquipped', this._handlers.onWeaponChange);
+      s.off('weaponSwitched', this._handlers.onWeaponChange);
+      s.off('gameOver', this._handlers.gameOver);
+      s.off('returnToLobby', this._handlers.returnToLobby);
+    }
+    this.enemySystem?.destroy();
+    this.bulletSystem?.destroy();
+    this.weaponSystem?.destroy();
+    this.healthUI?.destroy();
+    this.waveUI?.destroy();
+    this.shopUI?.destroy();
+    this.goldUI?.destroy();
   }
 
   createRoom() {
@@ -186,6 +252,13 @@ export class GameScene extends Phaser.Scene {
   update(time, delta) {
     if (!this.localSprite) return;
 
+    if (this.gameEnded) {
+      this.enemySystem.update();
+      this.bulletSystem.update(delta);
+      this.localSprite.body.setVelocity(0);
+      return;
+    }
+
     const body = this.localSprite.body;
     body.setVelocity(0);
 
@@ -210,6 +283,7 @@ export class GameScene extends Phaser.Scene {
 
     this.enemySystem.update();
     this.bulletSystem.update(delta);
+    this.weaponSystem.update();
     this.healthUI.updateBarPositions();
   }
 }

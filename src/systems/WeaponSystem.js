@@ -17,7 +17,15 @@ export class WeaponSystem {
     this.ownedWeapons = ['pistol'];
     this.lastFireTime = 0;
 
-    this.scene.input.on('pointerdown', () => this.tryShoot());
+    // Hold-to-fire: track whether the trigger is held (mouse or spacebar).
+    this.pointerDown = false;
+    this.scene.input.on('pointerdown', () => { this.pointerDown = true; this.tryShoot(); });
+    this.scene.input.on('pointerup', () => { this.pointerDown = false; });
+    this.scene.input.on('gameout', () => { this.pointerDown = false; });
+
+    // Spacebar also fires (and can be held). Capture it so the page doesn't scroll.
+    this.spaceKey = this.scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
+    this.scene.input.keyboard.addCapture('SPACE');
 
     // Mouse wheel cycles through owned weapons.
     this.scene.input.on('wheel', (_p, _o, _dx, dy) => {
@@ -73,15 +81,23 @@ export class WeaponSystem {
     this.socket.socket.emit('switchWeapon', { weaponId });
   }
 
+  // Called every frame from GameScene — enables continuous hold-to-fire.
+  update() {
+    if (this.pointerDown || this.spaceKey?.isDown) this.tryShoot();
+  }
+
   tryShoot() {
     if (!this.localPlayerSprite) return;
-    if (this.scene.shopUI?.isOpen) return; // don't fire while shopping
+    if (this.scene.gameEnded) return;       // no shooting after defeat
+    if (this.scene.shopUI?.isOpen) return;  // don't fire while shopping
 
     const now = Date.now();
-    const cooldown = getWeapon(this.currentWeapon).fireRate;
-    if (now - this.lastFireTime < cooldown) return;
+    const weapon = getWeapon(this.currentWeapon);
+    if (now - this.lastFireTime < weapon.fireRate) return;
 
     this.lastFireTime = now;
+
+    this.scene.playShotSound?.(weapon.bulletType, true);
 
     this.socket.socket.emit('playerShoot', {
       weaponType: this.currentWeapon,
@@ -134,6 +150,8 @@ export class WeaponSystem {
 
   destroy() {
     this.scene.input.off('pointerdown');
+    this.scene.input.off('pointerup');
+    this.scene.input.off('gameout');
     this.scene.input.off('wheel');
     this.socket.socket.off('purchaseResult');
     this.socket.socket.off('weaponEquipped');

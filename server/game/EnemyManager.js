@@ -3,6 +3,7 @@ export class EnemyManager {
     this.io = io;
     this.getPlayers = getPlayers;
     this.enemies = new Map();
+    this.LEFT_WALL = 50; // enemies stop at the left wall
   }
 
   spawnEnemy(hp) {
@@ -20,9 +21,14 @@ export class EnemyManager {
     const playerList = Object.values(players);
 
     for (const enemy of this.enemies.values()) {
+      // Enemies ONLY march straight left — never adjust their height.
+      // Players must run up/down to line up shots and dodge.
+      enemy.x -= 80 * (deltaMs / 1000);
+      if (enemy.x < this.LEFT_WALL) enemy.x = this.LEFT_WALL;
+
       if (playerList.length === 0) continue;
 
-      // Find closest player
+      // Melee the nearest player that is actually within reach (same lane).
       let closestPlayer = null;
       let closestDist = Infinity;
       for (const player of playerList) {
@@ -35,18 +41,7 @@ export class EnemyManager {
         }
       }
 
-      if (!closestPlayer) continue;
-
-      const dx = closestPlayer.x - enemy.x;
-      const dy = closestPlayer.y - enemy.y;
-      const dist = Math.sqrt(dx * dx + dy * dy);
-
-      if (dist > 0) {
-        enemy.x += (dx / dist) * 80 * (deltaMs / 1000);
-        enemy.y += (dy / dist) * 80 * (deltaMs / 1000);
-      }
-
-      if (dist <= 45 && Date.now() - enemy.lastMeleeTime >= 1500) {
+      if (closestPlayer && closestDist <= 45 && Date.now() - enemy.lastMeleeTime >= 1500) {
         enemy.lastMeleeTime = Date.now();
         if (this.onMeleeDamage) {
           this.onMeleeDamage(closestPlayer.id, 15);

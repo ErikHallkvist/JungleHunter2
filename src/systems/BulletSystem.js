@@ -7,6 +7,7 @@ export class BulletSystem {
     this.socket = null;
     this.getEnemies = null;
     this.hitBullets = new Set();
+    this.lastRemoteSound = new Map(); // ownerId -> timestamp (dedup multi-pellet shots)
   }
 
   init(socket, getEnemies) {
@@ -25,10 +26,22 @@ export class BulletSystem {
     sprite.setRotation(Math.atan2(vy, vx));
     sprite.setDepth(8);
 
+    const mine = ownerId === this.socket.socket.id;
+
+    // Play other players' shot sounds (own sound is played by WeaponSystem).
+    // Dedup per owner so a multi-pellet shotgun blast only sounds once.
+    if (!mine) {
+      const now = Date.now();
+      if (now - (this.lastRemoteSound.get(ownerId) || 0) > 70) {
+        this.lastRemoteSound.set(ownerId, now);
+        this.scene.playShotSound?.(type, false);
+      }
+    }
+
     this.bullets.set(id, {
       sprite, vx, vy, ownerId,
       w: proj.w, h: proj.h,
-      mine: ownerId === this.socket.socket.id,
+      mine,
       createdAt: Date.now(),
       processed: false,
     });

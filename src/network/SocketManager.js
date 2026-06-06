@@ -10,10 +10,12 @@ export class SocketManager {
   onLobbyUpdate(callback) { this.socket.on('lobbyUpdate', callback); }
   onGameStarted(callback) { this.socket.on('gameInit', callback); }
   emitStartGame() { this.socket.emit('startGame'); }
+  requestLobby() { this.socket.emit('requestLobby'); }
 
   offLobby() {
     this.socket.off('assignedName');
     this.socket.off('lobbyUpdate');
+    this.socket.off('gameInit');
   }
 
   // --- Game ---

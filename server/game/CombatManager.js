@@ -10,6 +10,7 @@ export class CombatManager {
     this.shopManager = shopManager;
     this.activeBullets = new Map(); // bulletId -> bullet object
     this.playerHp = new Map();      // socketId -> currentHp
+    this.onPlayerDied = null;       // callback(playerId) — set externally
   }
 
   initPlayer(socketId) {
@@ -110,6 +111,7 @@ export class CombatManager {
 
     if (newHp <= 0) {
       this.io.emit('playerDied', { id: playerId });
+      if (this.onPlayerDied) this.onPlayerDied(playerId);
     }
   }
 

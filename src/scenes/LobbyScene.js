@@ -17,13 +17,26 @@ export class LobbyScene extends Phaser.Scene {
     this.playerItems = [];
   }
 
+  init(data) {
+    // When returning from a finished game we reuse the existing connection.
+    this.reusedSocket = data?.socket || null;
+    this.reusedName = data?.myName || '';
+  }
+
   create() {
-    this.socket = new SocketManager();
-    this.myName = '';
+    this.socket = this.reusedSocket || new SocketManager();
+    this.myName = this.reusedName || '';
     this.players = [];
     this.gameInProgress = false;
 
     this.buildUI();
+
+    // Show our name straight away when reusing (assignedName won't fire again).
+    if (this.myName) {
+      this.nameText.setText(`Du spelar som: ${this.myName}`);
+      this.nameText.setColor('#e2b714');
+    }
+
     this.registerSocketEvents();
   }
 
@@ -98,6 +111,10 @@ export class LobbyScene extends Phaser.Scene {
       this.socket.offLobby();
       this.scene.start('GameScene', { socket: this.socket, myName: this.myName, playerList });
     });
+
+    // When reusing an existing connection (returning from a game), the initial
+    // lobbyUpdate already fired before this scene existed — ask for it again.
+    if (this.reusedSocket) this.socket.requestLobby();
   }
 
   refreshPlayerList() {
