@@ -46,9 +46,9 @@ export class WaveUI {
       .setOrigin(0.5)
       .setAlpha(0);
 
-    socket.socket.on('waveStart', ({ waveNumber, enemyCount }) => {
+    socket.socket.on('waveStart', ({ waveNumber, enemyCount, enemyName }) => {
       this.aliveEnemies = 0;
-      this.waveText.setText(`WAVE ${waveNumber}`);
+      this.waveText.setText(`WAVE ${waveNumber}${enemyName ? ` — ${enemyName}` : ''}`);
       this.enemyCountText.setText(`Enemies: ${enemyCount}`);
       this.countdownText.setAlpha(0);
       this.flashText.setText(`WAVE ${waveNumber}!`).setAlpha(1);

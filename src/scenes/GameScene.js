@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { WEAPONS, PROJECTILES, getWeapon } from '../../shared/weapons.js';
+import { ENEMY_TYPES } from '../../shared/enemies.js';
 import { EnemySystem } from '../systems/EnemySystem.js';
 import { WeaponSystem } from '../systems/WeaponSystem.js';
 import { BulletSystem } from '../systems/BulletSystem.js';
@@ -25,8 +26,13 @@ export class GameScene extends Phaser.Scene {
 
   preload() {
     this.load.image('player', 'assets/sprites/player.png');
-    this.load.image('enemy',  'assets/sprites/enemy.png');
     this.load.image('jungle', 'assets/background/jungle.png');
+
+    // All 40 enemy sprites and hit sounds
+    for (const e of ENEMY_TYPES) {
+      this.load.image(`e_${e.id}`, `assets/sprites/e_${e.id}.png`);
+      this.load.audio(`sfx_ouch_${e.id}`, `assets/sounds/sfx_ouch_${e.id}.wav`);
+    }
 
     // All projectile sprites
     for (const proj of Object.values(PROJECTILES)) {

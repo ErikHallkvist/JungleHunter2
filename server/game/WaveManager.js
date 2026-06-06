@@ -1,3 +1,5 @@
+import { ENEMY_TYPES } from '../../shared/enemies.js';
+
 export class WaveManager {
   constructor(io, enemyManager, getPlayers) {
     this.io = io;
@@ -39,14 +41,20 @@ export class WaveManager {
   }
 
   startNextWave() {
+    // Each wave uses one specific enemy type; cycle back after all 40.
+    const typeIndex = this.currentWave % ENEMY_TYPES.length;
+    const type = ENEMY_TYPES[typeIndex];
     this.currentWave++;
-    const enemyCount = 5 + (this.currentWave - 1) * 3;
-    const enemyHp = 30 + (this.currentWave - 1) * 10;
+
+    // Enemy count scales with wave number (more enemies each loop of 40)
+    const loop = Math.floor((this.currentWave - 1) / ENEMY_TYPES.length);
+    const enemyCount = 5 + (this.currentWave - 1) * 2 + loop * 3;
 
     this.io.emit('waveStart', {
       waveNumber: this.currentWave,
       enemyCount,
-      enemyHp,
+      enemyType: type.id,
+      enemyName: type.name,
     });
 
     this.waveActive = true;
@@ -54,7 +62,8 @@ export class WaveManager {
 
     let spawned = 0;
     const spawnInterval = setInterval(() => {
-      this.enemyManager.spawnEnemy(enemyHp);
+      if (!this.gameRunning) { clearInterval(spawnInterval); return; }
+      this.enemyManager.spawnEnemy(type.id, type.hp);
       spawned++;
       if (spawned >= enemyCount) {
         clearInterval(spawnInterval);
@@ -77,9 +86,7 @@ export class WaveManager {
     }, 1000);
   }
 
-  getCurrentWave() {
-    return this.currentWave;
-  }
+  getCurrentWave() { return this.currentWave; }
 
   stopGame() {
     if (this.loopInterval) {
