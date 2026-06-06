@@ -5,18 +5,22 @@ export class SocketManager {
     this.socket = io('http://localhost:3000');
   }
 
-  // Lobby
+  // --- Lobby ---
   onAssignedName(callback) { this.socket.on('assignedName', callback); }
   onLobbyUpdate(callback) { this.socket.on('lobbyUpdate', callback); }
-  onGameStarted(callback) { this.socket.on('gameStarted', callback); }
+  onGameStarted(callback) { this.socket.on('gameInit', callback); }
   emitStartGame() { this.socket.emit('startGame'); }
 
-  // Spel
-  onCurrentPlayers(callback) { this.socket.on('currentPlayers', callback); }
-  onPlayerJoined(callback) { this.socket.on('playerJoined', callback); }
-  onPlayerMoved(callback) { this.socket.on('playerMoved', callback); }
-  onPlayerLeft(callback) { this.socket.on('playerLeft', callback); }
-  emitMove(x, y) { this.socket.emit('playerMove', { x, y }); }
+  offLobby() {
+    this.socket.off('assignedName');
+    this.socket.off('lobbyUpdate');
+  }
+
+  // --- Game ---
+  onGameInit(callback) { this.socket.on('gameInit', callback); }
+  onGamePlayerMoved(callback) { this.socket.on('gamePlayerMoved', callback); }
+  onGamePlayerLeft(callback) { this.socket.on('gamePlayerLeft', callback); }
+  emitPlayerMove(x, y) { this.socket.emit('playerMove', { x, y }); }
 
   get id() { return this.socket.id; }
 }

@@ -28,10 +28,8 @@ export class LobbyScene extends Phaser.Scene {
   }
 
   buildUI() {
-    // Bakgrund
     this.add.rectangle(W / 2, H / 2, W, H, BG);
 
-    // Titel
     this.add.text(W / 2, 80, 'JUNGLE HUNTER 2', {
       fontSize: '52px',
       fontStyle: 'bold',
@@ -39,14 +37,12 @@ export class LobbyScene extends Phaser.Scene {
       fontFamily: 'monospace',
     }).setOrigin(0.5);
 
-    // Panel
     const panelX = W / 2;
     const panelY = H / 2 + 20;
     const panelW = 500;
     const panelH = 400;
     this.add.rectangle(panelX, panelY, panelW, panelH, PANEL_BG, 0.95).setStrokeStyle(2, ACCENT);
 
-    // Lobby-rubrik
     this.add.text(panelX, panelY - panelH / 2 + 30, 'LOBBY', {
       fontSize: '22px',
       fontStyle: 'bold',
@@ -56,21 +52,18 @@ export class LobbyScene extends Phaser.Scene {
 
     this.add.rectangle(panelX, panelY - panelH / 2 + 55, panelW - 40, 1, 0x333355);
 
-    // Ditt namn
     this.nameText = this.add.text(panelX, panelY - panelH / 2 + 85, 'Ansluter...', {
       fontSize: '16px',
       color: '#aaaaaa',
       fontFamily: 'monospace',
     }).setOrigin(0.5);
 
-    // Spelarlista container (start Y)
     this.listStartY = panelY - panelH / 2 + 120;
     this.listX = panelX;
     this.panelW = panelW;
 
-    // Knapp
     const btnY = panelY + panelH / 2 - 45;
-    this.btnBg = this.add.rectangle(panelX, btnY, 260, 52, GREEN).setInteractive({ useHandCursor: true });
+    this.btnBg = this.add.rectangle(panelX, btnY, 300, 52, GREEN).setInteractive({ useHandCursor: true });
     this.btnText = this.add.text(panelX, btnY, 'START GAME', {
       fontSize: '20px',
       fontStyle: 'bold',
@@ -84,9 +77,7 @@ export class LobbyScene extends Phaser.Scene {
     this.btnBg.on('pointerover', () => {
       if (!this.gameInProgress) this.btnBg.setFillStyle(0x66bb6a);
     });
-    this.btnBg.on('pointerout', () => {
-      this.refreshButton();
-    });
+    this.btnBg.on('pointerout', () => this.refreshButton());
   }
 
   registerSocketEvents() {
@@ -104,6 +95,7 @@ export class LobbyScene extends Phaser.Scene {
     });
 
     this.socket.onGameStarted(() => {
+      this.socket.offLobby();
       this.scene.start('GameScene', { socket: this.socket, myName: this.myName });
     });
   }
