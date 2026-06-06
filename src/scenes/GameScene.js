@@ -41,9 +41,10 @@ export class GameScene extends Phaser.Scene {
       this.load.audio(`sfx_${type}`, `assets/sounds/sfx_${type}.wav`);
     }
     // Gameplay sounds
-    for (const s of ['move', 'hit', 'leak', 'gameover']) {
+    for (const s of ['move', 'hit', 'leak', 'gameover', 'cash']) {
       this.load.audio(`sfx_${s}`, `assets/sounds/sfx_${s}.wav`);
     }
+    this.load.audio('music_game', 'assets/sounds/music_game.wav');
   }
 
   // Generic sound helper — silently no-ops if the clip isn't loaded.
@@ -100,6 +101,11 @@ export class GameScene extends Phaser.Scene {
     this.goldUI.init(this.socket, this.socket.id);
 
     this.gameEnded = false;
+
+    // Start looping background music
+    this.gameMusic = this.sound.add('music_game', { loop: true, volume: 0.35 });
+    this.gameMusic.play();
+
     this.initialPlayerList.forEach((player) => this.spawnPlayer(player));
 
     // Keep references so we can detach exactly these on shutdown.
@@ -183,6 +189,7 @@ export class GameScene extends Phaser.Scene {
       s.off('gameOver', this._handlers.gameOver);
       s.off('returnToLobby', this._handlers.returnToLobby);
     }
+    this.gameMusic?.stop();
     this.enemySystem?.destroy();
     this.bulletSystem?.destroy();
     this.weaponSystem?.destroy();

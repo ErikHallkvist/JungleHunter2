@@ -23,11 +23,18 @@ export class LobbyScene extends Phaser.Scene {
     this.reusedName = data?.myName || '';
   }
 
+  preload() {
+    this.load.audio('music_lobby', 'assets/sounds/music_lobby.wav');
+  }
+
   create() {
     this.socket = this.reusedSocket || new SocketManager();
     this.myName = this.reusedName || '';
     this.players = [];
     this.gameInProgress = false;
+
+    this.lobbyMusic = this.sound.add('music_lobby', { loop: true, volume: 0.3 });
+    this.lobbyMusic.play();
 
     this.buildUI();
 
@@ -109,6 +116,7 @@ export class LobbyScene extends Phaser.Scene {
 
     this.socket.onGameStarted((playerList) => {
       this.socket.offLobby();
+      this.lobbyMusic?.stop();
       this.scene.start('GameScene', { socket: this.socket, myName: this.myName, playerList });
     });
 

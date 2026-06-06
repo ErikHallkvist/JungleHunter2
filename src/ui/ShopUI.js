@@ -100,6 +100,7 @@ export class ShopUI {
         this.currentGold = newGold;
         this.goldText?.setText(`Gold: ${newGold}`);
         this.showFeedback(`Bought ${getWeapon(weaponId).name}!`, '#00ff88');
+        this.scene.playSfx?.('sfx_cash', 0.55);
         this.refreshItemStates();
       } else {
         this.showFeedback(error === 'Not enough gold' ? 'Not enough gold!' : (error || 'Purchase failed'), '#ff4444');
