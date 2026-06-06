@@ -142,11 +142,18 @@ export class WeaponSystem {
     if (!this.hudText) return;
     const w = getWeapon(this.currentWeapon);
     const idx = this.ownedWeapons.indexOf(this.currentWeapon) + 1;
-    this.hudText.setText(`[${idx}] ${w.name}  (wheel / number keys to switch)`);
+    const hint = w.id === 'grenade'
+      ? '  — press Q to throw!'
+      : '  (wheel / number keys to switch)';
+    this.hudText.setText(`[${idx}] ${w.name}${hint}`);
   }
 
   getCurrentWeapon() {
     return this.currentWeapon;
+  }
+
+  ownsWeapon(id) {
+    return this.ownedWeapons.includes(id);
   }
 
   destroy() {
