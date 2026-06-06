@@ -63,7 +63,7 @@ export class HealthUI {
           })
           .setOrigin(0.5)
           .setAlpha(0)
-          .setDepth(200);
+          .setDepth(50);
 
         this.scene.tweens.add({
           targets: deadText,
