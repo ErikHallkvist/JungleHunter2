@@ -1,33 +1,34 @@
 export class BulletSystem {
   constructor(scene) {
     this.scene = scene;
-    this.bullets = new Map();   // bulletId -> {sprite, vx, vy, weaponType, createdAt, processed}
+    this.bullets = new Map();
     this.socket = null;
     this.getEnemies = null;
-    this.hitBullets = new Set(); // track already-hit bullet IDs to prevent double-send
+    this.hitBullets = new Set();
   }
 
   init(socket, getEnemies) {
     this.socket = socket;
     this.getEnemies = getEnemies;
-
     socket.socket.on('bulletFired', (data) => this.onBulletFired(data));
   }
 
   onBulletFired({ id, ownerId, x, y, vx, vy, weaponType }) {
-    let sprite;
+    const key = weaponType === 'shotgun' ? 'pellet' : 'bullet';
+    const sprite = this.scene.add.image(x, y, key);
 
     if (weaponType === 'shotgun') {
-      sprite = this.scene.add.rectangle(x, y, 6, 3, 0xff8800); // orange pellet
+      sprite.setDisplaySize(10, 10);
     } else {
-      sprite = this.scene.add.rectangle(x, y, 8, 4, 0xffff00); // yellow bullet
+      sprite.setDisplaySize(20, 7);
     }
 
+    // Rotate sprite to match travel direction
+    sprite.setRotation(Math.atan2(vy, vx));
+    sprite.setDepth(8);
+
     this.bullets.set(id, {
-      sprite,
-      vx,
-      vy,
-      weaponType,
+      sprite, vx, vy, weaponType,
       createdAt: Date.now(),
       processed: false,
     });
@@ -39,31 +40,33 @@ export class BulletSystem {
     for (const [id, bullet] of this.bullets) {
       const { sprite, vx, vy, createdAt } = bullet;
 
-      // Move bullet
       sprite.x += vx * (delta / 1000);
       sprite.y += vy * (delta / 1000);
 
-      // Remove if off-screen
-      if (sprite.x < 0 || sprite.x > 1280 || sprite.y < 0 || sprite.y > 720) {
+      if (
+        sprite.x < 0 || sprite.x > 1280 ||
+        sprite.y < 0 || sprite.y > 720 ||
+        now - createdAt > 2000
+      ) {
         sprite.destroy();
         this.bullets.delete(id);
         continue;
       }
 
-      // Remove if older than 2000ms
-      if (now - createdAt > 2000) {
-        sprite.destroy();
-        this.bullets.delete(id);
-        continue;
-      }
-
-      // Collision detection with enemies
       if (!bullet.processed) {
-        const enemies = this.getEnemies();
-        const bulletRect = new Phaser.Geom.Rectangle(sprite.x - 4, sprite.y - 2, 8, 4);
+        const bW = bullet.weaponType === 'shotgun' ? 10 : 20;
+        const bH = bullet.weaponType === 'shotgun' ? 10 : 7;
+        const bulletRect = new Phaser.Geom.Rectangle(
+          sprite.x - bW / 2, sprite.y - bH / 2, bW, bH
+        );
 
-        for (const enemy of enemies) {
-          const enemyRect = new Phaser.Geom.Rectangle(enemy.x - 14, enemy.y - 20, 28, 40);
+        for (const enemy of this.getEnemies()) {
+          const enemyRect = new Phaser.Geom.Rectangle(
+            enemy.x - enemy.width / 2,
+            enemy.y - enemy.height / 2,
+            enemy.width,
+            enemy.height
+          );
 
           if (
             Phaser.Geom.Rectangle.Overlaps(bulletRect, enemyRect) &&
@@ -71,12 +74,7 @@ export class BulletSystem {
           ) {
             this.hitBullets.add(id);
             bullet.processed = true;
-
-            this.socket.socket.emit('hitEnemy', {
-              bulletId: id,
-              enemyId: enemy.id,
-            });
-
+            this.socket.socket.emit('hitEnemy', { bulletId: id, enemyId: enemy.id });
             sprite.destroy();
             this.bullets.delete(id);
             break;
@@ -88,11 +86,9 @@ export class BulletSystem {
 
   destroy() {
     this.socket.socket.off('bulletFired');
-
-    for (const [id, bullet] of this.bullets) {
+    for (const bullet of this.bullets.values()) {
       bullet.sprite.destroy();
     }
-
     this.bullets.clear();
     this.hitBullets.clear();
   }

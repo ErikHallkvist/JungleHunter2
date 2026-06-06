@@ -8,8 +8,8 @@ import { ShopUI } from '../ui/ShopUI.js';
 import { GoldUI } from '../ui/GoldUI.js';
 
 const ROOM = { x: 32, y: 32, width: 1216, height: 656 };
-const PLAYER_W = 28;
-const PLAYER_H = 40;
+export const PLAYER_W = 36;
+export const PLAYER_H = 48;
 const SPEED = 220;
 
 export class GameScene extends Phaser.Scene {
@@ -21,6 +21,14 @@ export class GameScene extends Phaser.Scene {
     this.socket = data.socket;
     this.myName = data.myName;
     this.initialPlayerList = data.playerList || [];
+  }
+
+  preload() {
+    this.load.image('player', 'assets/sprites/player.png');
+    this.load.image('enemy',  'assets/sprites/enemy.png');
+    this.load.image('bullet', 'assets/sprites/bullet.png');
+    this.load.image('pellet', 'assets/sprites/pellet.png');
+    this.load.image('jungle', 'assets/background/jungle.png');
   }
 
   create() {
@@ -38,7 +46,6 @@ export class GameScene extends Phaser.Scene {
     });
     this.physics.world.setBounds(ROOM.x, ROOM.y, ROOM.width, ROOM.height);
 
-    // Systems
     this.enemySystem = new EnemySystem(this);
     this.enemySystem.init(this.socket);
 
@@ -60,15 +67,13 @@ export class GameScene extends Phaser.Scene {
     this.goldUI = new GoldUI(this);
     this.goldUI.init(this.socket, this.socket.id);
 
-    // Spawn all players from data passed from lobby scene
     this.initialPlayerList.forEach((player) => this.spawnPlayer(player));
 
-    // Other players joining/leaving/moving
     this.socket.socket.on('gamePlayerMoved', ({ id, x, y }) => {
       const p = this.players[id];
       if (p && id !== this.localId) {
         p.sprite.setPosition(x, y);
-        p.nameText.setPosition(x, y - PLAYER_H / 2 - 10);
+        p.nameText.setPosition(x, y - PLAYER_H / 2 - 8);
       }
     });
 
@@ -83,33 +88,55 @@ export class GameScene extends Phaser.Scene {
   }
 
   createRoom() {
-    this.add.rectangle(640, 360, 1280, 720, 0x0d2b1a);
-    this.add.rectangle(640, 360, ROOM.width, ROOM.height, 0x1b4332);
+    // Tiled jungle background
+    this.add.tileSprite(640, 360, 1280, 720, 'jungle');
 
-    const g = this.add.graphics();
-    g.lineStyle(4, 0x2d6a4f, 1);
-    g.strokeRect(ROOM.x, ROOM.y, ROOM.width, ROOM.height);
+    // Dark vignette on the outer border strip
+    const gfx = this.add.graphics();
+    gfx.fillStyle(0x000000, 0.35);
+    gfx.fillRect(0, 0, 1280, ROOM.y);                         // top
+    gfx.fillRect(0, ROOM.y + ROOM.height, 1280, ROOM.y);      // bottom
+    gfx.fillRect(0, 0, ROOM.x, 720);                          // left
+    gfx.fillRect(ROOM.x + ROOM.width, 0, ROOM.x, 720);        // right
+
+    // Room border
+    gfx.lineStyle(3, 0x4caf50, 0.7);
+    gfx.strokeRect(ROOM.x, ROOM.y, ROOM.width, ROOM.height);
   }
 
   spawnPlayer(playerData) {
     const isLocal = playerData.name === this.myName;
-    const color = isLocal ? 0x00e676 : 0x448aff;
 
-    const sprite = this.add.rectangle(playerData.x, playerData.y, PLAYER_W, PLAYER_H, color);
-
+    let sprite;
     if (isLocal) {
-      this.physics.add.existing(sprite);
+      sprite = this.physics.add.image(playerData.x, playerData.y, 'player');
+      sprite.setDisplaySize(PLAYER_W, PLAYER_H);
+      sprite.body.setSize(PLAYER_W - 6, PLAYER_H - 6);
       sprite.body.setCollideWorldBounds(true);
       this.localSprite = sprite;
       this.localId = playerData.id;
       this.weaponSystem.setLocalPlayerSprite(sprite);
+    } else {
+      sprite = this.add.image(playerData.x, playerData.y, 'player');
+      sprite.setDisplaySize(PLAYER_W, PLAYER_H);
+      // Blue tint for other players
+      sprite.setTint(0xaaddff);
     }
 
+    sprite.setDepth(10);
+
     const nameText = this.add.text(
-      playerData.x, playerData.y - PLAYER_H / 2 - 10,
+      playerData.x,
+      playerData.y - PLAYER_H / 2 - 8,
       playerData.name,
-      { fontSize: '13px', color: isLocal ? '#00e676' : '#ffffff', fontFamily: 'monospace' }
-    ).setOrigin(0.5);
+      {
+        fontSize: '13px',
+        color: isLocal ? '#00ff88' : '#aaddff',
+        fontFamily: 'monospace',
+        stroke: '#000000',
+        strokeThickness: 3,
+      }
+    ).setOrigin(0.5).setDepth(11);
 
     this.players[playerData.id] = { sprite, nameText, isLocal };
     this.healthUI.registerPlayerSprite(playerData.id, sprite, isLocal);
@@ -131,7 +158,7 @@ export class GameScene extends Phaser.Scene {
     if (local) {
       local.nameText.setPosition(
         this.localSprite.x,
-        this.localSprite.y - PLAYER_H / 2 - 10
+        this.localSprite.y - PLAYER_H / 2 - 8
       );
     }
 

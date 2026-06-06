@@ -1,7 +1,10 @@
+const ENEMY_W = 40;
+const ENEMY_H = 52;
+
 export class EnemySystem {
   constructor(scene) {
     this.scene = scene;
-    this.enemies = new Map(); // id -> {sprite, hpBarBg, hpBar, hp, maxHp, targetX, targetY}
+    this.enemies = new Map();
     this.socket = null;
   }
 
@@ -14,9 +17,15 @@ export class EnemySystem {
   }
 
   onEnemySpawned({ id, x, y, hp, maxHp }) {
-    const sprite = this.scene.add.rectangle(x, y, 28, 40, 0xff4444);
-    const hpBarBg = this.scene.add.rectangle(x, y - 28, 30, 5, 0x333333);
-    const hpBar = this.scene.add.rectangle(x, y - 28, 30, 5, 0x00ff00);
+    const sprite = this.scene.add.image(x, y, 'enemy');
+    sprite.setDisplaySize(ENEMY_W, ENEMY_H);
+    sprite.setDepth(10);
+
+    const barW = 36;
+    const barY = y - ENEMY_H / 2 - 6;
+    const hpBarBg = this.scene.add.rectangle(x, barY, barW, 5, 0x333333).setDepth(11);
+    const hpBar  = this.scene.add.rectangle(x, barY, barW, 5, 0x00ff00).setDepth(12);
+
     this.enemies.set(id, { sprite, hpBarBg, hpBar, hp, maxHp, targetX: x, targetY: y });
   }
 
@@ -30,19 +39,23 @@ export class EnemySystem {
     }
   }
 
-  onEnemyDied({ id, killedBy }) {
+  onEnemyDied({ id }) {
     const enemy = this.enemies.get(id);
     if (!enemy) return;
 
     const { sprite, hpBarBg, hpBar } = enemy;
-
-    // Brief white flash then destroy
-    sprite.setFillStyle(0xffffff);
     hpBarBg.destroy();
     hpBar.destroy();
 
-    this.scene.time.delayedCall(150, () => {
-      sprite.destroy();
+    // Flash white then fade out
+    sprite.setTint(0xffffff);
+    this.scene.tweens.add({
+      targets: sprite,
+      alpha: 0,
+      scaleX: 1.4,
+      scaleY: 1.4,
+      duration: 200,
+      onComplete: () => sprite.destroy(),
     });
 
     this.enemies.delete(id);
@@ -54,7 +67,17 @@ export class EnemySystem {
 
     enemy.hp = hp;
     const ratio = hp / enemy.maxHp;
-    enemy.hpBar.width = 30 * ratio;
+    const barW = 36;
+    enemy.hpBar.width = barW * ratio;
+    enemy.hpBar.setFillStyle(
+      ratio > 0.5 ? 0x00ff00 : ratio > 0.25 ? 0xffaa00 : 0xff3333
+    );
+
+    // Brief red flash on hit
+    enemy.sprite.setTint(0xff4444);
+    this.scene.time.delayedCall(80, () => {
+      if (enemy.sprite?.active) enemy.sprite.clearTint();
+    });
   }
 
   update() {
@@ -64,19 +87,24 @@ export class EnemySystem {
       sprite.x = Phaser.Math.Linear(sprite.x, targetX, 0.3);
       sprite.y = Phaser.Math.Linear(sprite.y, targetY, 0.3);
 
-      hpBarBg.setPosition(sprite.x, sprite.y - 28);
-      hpBar.setPosition(sprite.x - (30 - hpBar.width) / 2, sprite.y - 28);
+      const barY = sprite.y - ENEMY_H / 2 - 6;
+      hpBarBg.setPosition(sprite.x, barY);
+      hpBar.setPosition(sprite.x - (36 - hpBar.width) / 2, barY);
     }
   }
 
   getEnemies() {
-    return Array.from(this.enemies.values()).map(({ sprite }) => ({
-      id: [...this.enemies.entries()].find(([, e]) => e.sprite === sprite)?.[0],
-      x: sprite.x,
-      y: sprite.y,
-      width: 28,
-      height: 40,
-    }));
+    const result = [];
+    for (const [id, enemy] of this.enemies.entries()) {
+      result.push({
+        id,
+        x: enemy.sprite.x,
+        y: enemy.sprite.y,
+        width: ENEMY_W,
+        height: ENEMY_H,
+      });
+    }
+    return result;
   }
 
   destroy() {
@@ -86,13 +114,11 @@ export class EnemySystem {
       this.socket.socket.off('enemyDied');
       this.socket.socket.off('enemyDamaged');
     }
-
     for (const { sprite, hpBarBg, hpBar } of this.enemies.values()) {
       sprite.destroy();
       hpBarBg.destroy();
       hpBar.destroy();
     }
-
     this.enemies.clear();
   }
 }
