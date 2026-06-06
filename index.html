@@ -5,11 +5,35 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>JungleHunter2</title>
     <style>
+      @font-face {
+        font-family: 'PressStart2P';
+        src: url('./assets/fonts/PressStart2P.ttf') format('truetype');
+        font-display: block;
+      }
+      @font-face {
+        font-family: 'VT323';
+        src: url('./assets/fonts/VT323.ttf') format('truetype');
+        font-display: block;
+      }
       * { margin: 0; padding: 0; box-sizing: border-box; }
-      body { background: #000; display: flex; justify-content: center; align-items: center; height: 100vh; }
+      html, body { height: 100%; }
+      body {
+        background: #0c0c14;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        image-rendering: pixelated;
+      }
+      canvas { image-rendering: pixelated; }
+      /* Keep the pixel fonts resident so Phaser measures glyphs correctly. */
+      #font-preload { position: absolute; left: -9999px; top: -9999px; opacity: 0; }
     </style>
   </head>
   <body>
+    <div id="font-preload">
+      <span style="font-family: 'PressStart2P'">.</span>
+      <span style="font-family: 'VT323'">.</span>
+    </div>
     <script type="module" src="/src/main.js"></script>
   </body>
 </html>
