@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { WEAPONS, PROJECTILES, getWeapon } from '../../shared/weapons.js';
 import { EnemySystem } from '../systems/EnemySystem.js';
 import { WeaponSystem } from '../systems/WeaponSystem.js';
 import { BulletSystem } from '../systems/BulletSystem.js';
@@ -26,9 +27,16 @@ export class GameScene extends Phaser.Scene {
   preload() {
     this.load.image('player', 'assets/sprites/player.png');
     this.load.image('enemy',  'assets/sprites/enemy.png');
-    this.load.image('bullet', 'assets/sprites/bullet.png');
-    this.load.image('pellet', 'assets/sprites/pellet.png');
     this.load.image('jungle', 'assets/background/jungle.png');
+
+    // All projectile sprites
+    for (const proj of Object.values(PROJECTILES)) {
+      this.load.image(proj.sprite, `assets/sprites/${proj.sprite}.png`);
+    }
+    // All weapon icons
+    for (const w of WEAPONS) {
+      this.load.image(w.icon, `assets/sprites/${w.icon}.png`);
+    }
   }
 
   create() {
@@ -74,6 +82,7 @@ export class GameScene extends Phaser.Scene {
       if (p && id !== this.localId) {
         p.sprite.setPosition(x, y);
         p.nameText.setPosition(x, y - PLAYER_H / 2 - 8);
+        this.positionWeapon(p);
       }
     });
 
@@ -82,9 +91,15 @@ export class GameScene extends Phaser.Scene {
       if (p) {
         p.sprite.destroy();
         p.nameText.destroy();
+        p.weaponSprite?.destroy();
         delete this.players[id];
       }
     });
+
+    // A player (anyone) changed their active weapon — update the visible gun.
+    const onWeaponChange = ({ playerId, weaponId }) => this.setPlayerWeapon(playerId, weaponId);
+    this.socket.socket.on('weaponEquipped', onWeaponChange);
+    this.socket.socket.on('weaponSwitched', onWeaponChange);
   }
 
   createRoom() {
@@ -138,8 +153,34 @@ export class GameScene extends Phaser.Scene {
       }
     ).setOrigin(0.5).setDepth(11);
 
-    this.players[playerData.id] = { sprite, nameText, isLocal };
+    // Visible weapon held by this player (everyone sees it).
+    const weaponId = playerData.weapon || 'pistol';
+    const weaponSprite = this.add.image(0, 0, getWeapon(weaponId).icon)
+      .setOrigin(0.1, 0.5)
+      .setDisplaySize(30, 13)
+      .setDepth(9);
+
+    const entry = { sprite, nameText, weaponSprite, isLocal };
+    this.players[playerData.id] = entry;
+    this.positionWeapon(entry);
+
     this.healthUI.registerPlayerSprite(playerData.id, sprite, isLocal);
+  }
+
+  // Place the weapon sprite at the player's right hand (always faces right).
+  positionWeapon(entry) {
+    if (!entry.weaponSprite) return;
+    entry.weaponSprite.setPosition(entry.sprite.x + 8, entry.sprite.y + 6);
+  }
+
+  setPlayerWeapon(playerId, weaponId) {
+    const p = this.players[playerId];
+    if (!p || !p.weaponSprite) return;
+    p.weaponSprite.setTexture(getWeapon(weaponId).icon);
+    p.weaponSprite.setDisplaySize(30, 13);
+    if (playerId === this.localId) {
+      this.weaponSystem.equipWeapon(weaponId);
+    }
   }
 
   update(time, delta) {
@@ -160,6 +201,7 @@ export class GameScene extends Phaser.Scene {
         this.localSprite.x,
         this.localSprite.y - PLAYER_H / 2 - 8
       );
+      this.positionWeapon(local);
     }
 
     if (body.velocity.x !== 0 || body.velocity.y !== 0) {

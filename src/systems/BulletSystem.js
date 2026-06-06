@@ -1,3 +1,5 @@
+import { getWeapon, PROJECTILES } from '../../shared/weapons.js';
+
 export class BulletSystem {
   constructor(scene) {
     this.scene = scene;
@@ -13,22 +15,20 @@ export class BulletSystem {
     socket.socket.on('bulletFired', (data) => this.onBulletFired(data));
   }
 
-  onBulletFired({ id, ownerId, x, y, vx, vy, weaponType }) {
-    const key = weaponType === 'shotgun' ? 'pellet' : 'bullet';
-    const sprite = this.scene.add.image(x, y, key);
+  onBulletFired({ id, ownerId, x, y, vx, vy, weaponType, bulletType }) {
+    // Resolve the projectile visual (fall back via the weapon def).
+    const type = bulletType || getWeapon(weaponType).bulletType;
+    const proj = PROJECTILES[type] || PROJECTILES.bullet;
 
-    if (weaponType === 'shotgun') {
-      sprite.setDisplaySize(10, 10);
-    } else {
-      sprite.setDisplaySize(20, 7);
-    }
-
-    // Rotate sprite to match travel direction
+    const sprite = this.scene.add.image(x, y, proj.sprite);
+    sprite.setDisplaySize(proj.w, proj.h);
     sprite.setRotation(Math.atan2(vy, vx));
     sprite.setDepth(8);
 
     this.bullets.set(id, {
-      sprite, vx, vy, weaponType,
+      sprite, vx, vy, ownerId,
+      w: proj.w, h: proj.h,
+      mine: ownerId === this.socket.socket.id,
       createdAt: Date.now(),
       processed: false,
     });
@@ -46,18 +46,17 @@ export class BulletSystem {
       if (
         sprite.x < 0 || sprite.x > 1280 ||
         sprite.y < 0 || sprite.y > 720 ||
-        now - createdAt > 2000
+        now - createdAt > 2500
       ) {
         sprite.destroy();
         this.bullets.delete(id);
         continue;
       }
 
-      if (!bullet.processed) {
-        const bW = bullet.weaponType === 'shotgun' ? 10 : 20;
-        const bH = bullet.weaponType === 'shotgun' ? 10 : 7;
+      // Only the owner reports hits to the server (server validates ownership).
+      if (!bullet.processed && bullet.mine) {
         const bulletRect = new Phaser.Geom.Rectangle(
-          sprite.x - bW / 2, sprite.y - bH / 2, bW, bH
+          sprite.x - bullet.w / 2, sprite.y - bullet.h / 2, bullet.w, bullet.h
         );
 
         for (const enemy of this.getEnemies()) {

@@ -83,7 +83,7 @@ io.on('connection', (socket) => {
     players.forEach((player, i) => {
       const spawnX = SPAWN_X_MIN + Math.random() * (SPAWN_X_MAX - SPAWN_X_MIN);
       const spawnY = ROOM.y + 80 + (i / Math.max(count - 1, 1)) * (ROOM.height - 160);
-      gamePlayers[player.id] = { id: player.id, name: player.name, x: spawnX, y: spawnY, hp: 100 };
+      gamePlayers[player.id] = { id: player.id, name: player.name, x: spawnX, y: spawnY, hp: 100, weapon: 'pistol' };
     });
 
     initGame();
@@ -123,6 +123,12 @@ io.on('connection', (socket) => {
   socket.on('purchaseWeapon', ({ weaponId }) => {
     if (gameInProgress && shopManager) {
       shopManager.handlePurchase(socket.id, weaponId);
+    }
+  });
+
+  socket.on('switchWeapon', ({ weaponId }) => {
+    if (gameInProgress && shopManager) {
+      shopManager.handleSwitch(socket.id, weaponId);
     }
   });
 

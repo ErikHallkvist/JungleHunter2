@@ -1,14 +1,6 @@
-const handgunDef = {
-  damage: 10,
-  speed: 800,
-  pelletsCount: 1,
-};
+import { getWeapon } from '../../shared/weapons.js';
 
-const shotgunDef = {
-  damage: 8,
-  speed: 700,
-  pelletsCount: 5,
-};
+const GOLD_PER_KILL = 10;
 
 export class CombatManager {
   constructor(io, enemyManager, getPlayers, shopManager) {
@@ -25,34 +17,42 @@ export class CombatManager {
   }
 
   handleShot(socketId, data) {
-    const { weaponType, originX, originY } = data;
-    const weapon = weaponType === 'shotgun' ? shotgunDef : handgunDef;
+    // Dead players can't shoot
+    if ((this.playerHp.get(socketId) ?? 100) <= 0) return;
 
-    const spreadAngles =
-      weaponType === 'shotgun'
-        ? [-2, -1, 0, 1, 2].map((n) => n * (15 * Math.PI / 180))
-        : [0];
+    const { originX, originY } = data;
 
-    for (let i = 0; i < spreadAngles.length; i++) {
-      const angle = spreadAngles[i];
+    // Server is authoritative about which weapon the player actually holds.
+    const weaponId = this.shopManager.getActiveWeapon(socketId);
+    const weapon = getWeapon(weaponId);
+
+    // Build spread angles centred on 0 (straight right).
+    const n = weapon.pellets;
+    const spreadRad = (weapon.spreadDeg * Math.PI) / 180;
+    const angles = [];
+    for (let i = 0; i < n; i++) {
+      const t = n === 1 ? 0 : i / (n - 1) - 0.5; // -0.5 .. 0.5
+      angles.push(t * spreadRad);
+    }
+
+    for (const angle of angles) {
       const vx = Math.cos(angle) * weapon.speed;
       const vy = Math.sin(angle) * weapon.speed;
       const bulletId = Math.random().toString(36).substr(2, 9);
 
-      const bullet = {
+      this.activeBullets.set(bulletId, {
         id: bulletId,
         ownerId: socketId,
         x: originX,
         y: originY,
         vx,
         vy,
-        weaponType,
+        weaponType: weapon.id,
         damage: weapon.damage,
         createdAt: Date.now(),
-      };
+      });
 
-      this.activeBullets.set(bulletId, bullet);
-
+      // Broadcast to EVERY client so all players see each other's shots.
       this.io.emit('bulletFired', {
         id: bulletId,
         ownerId: socketId,
@@ -60,12 +60,11 @@ export class CombatManager {
         y: originY,
         vx,
         vy,
-        weaponType,
+        weaponType: weapon.id,
+        bulletType: weapon.bulletType,
       });
 
-      setTimeout(() => {
-        this.activeBullets.delete(bulletId);
-      }, 2000);
+      setTimeout(() => this.activeBullets.delete(bulletId), 2500);
     }
   }
 
@@ -75,20 +74,17 @@ export class CombatManager {
     const bullet = this.activeBullets.get(bulletId);
     if (!bullet) return;
 
+    // Only the bullet's owner can register its hits.
+    if (bullet.ownerId !== socketId) return;
+
     const damage = bullet.damage;
     const killed = this.enemyManager.damageEnemy(enemyId, damage, socketId);
 
     if (killed) {
-      this.shopManager.addGold(socketId, 10);
+      this.shopManager.addGold(socketId, GOLD_PER_KILL);
     }
 
-    this.io.to(socketId).emit('hitConfirmed', {
-      bulletId,
-      enemyId,
-      damage,
-      killed,
-    });
-
+    this.io.to(socketId).emit('hitConfirmed', { bulletId, enemyId, damage, killed });
     this.activeBullets.delete(bulletId);
   }
 
@@ -106,14 +102,11 @@ export class CombatManager {
     if (!socketId) return;
 
     const current = this.playerHp.get(socketId) ?? 100;
+    if (current <= 0) return; // already dead
     const newHp = Math.max(0, current - damage);
     this.playerHp.set(socketId, newHp);
 
-    this.io.emit('playerHpUpdated', {
-      id: playerId,
-      hp: newHp,
-      maxHp: 100,
-    });
+    this.io.emit('playerHpUpdated', { id: playerId, hp: newHp, maxHp: 100 });
 
     if (newHp <= 0) {
       this.io.emit('playerDied', { id: playerId });
