@@ -71,7 +71,8 @@ export class GameScene extends Phaser.Scene {
       left: Phaser.Input.Keyboard.KeyCodes.A,
       right: Phaser.Input.Keyboard.KeyCodes.D,
     });
-    this.physics.world.setBounds(ROOM.x, ROOM.y, ROOM.width, ROOM.height);
+    // Inset by 3px so the 36px sprite stays fully inside the room borders
+    this.physics.world.setBounds(ROOM.x + 3, ROOM.y + 3, ROOM.width - 6, ROOM.height - 6);
 
     this.enemySystem = new EnemySystem(this);
     this.enemySystem.init(this.socket);
