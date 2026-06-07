@@ -12,6 +12,9 @@ const Y_MIN = 80;
 const Y_MAX = 620;
 const ELITE_CHANCE = 0.08;
 const BARRICADE_DPS = 8;
+const CONTACT_DAMAGE = 25;
+const CONTACT_COOLDOWN_MS = 1000;
+const CONTACT_RADIUS = 35;
 
 export class EnemyManager {
   constructor(io, getPlayers) {
@@ -24,6 +27,9 @@ export class EnemyManager {
     this._lastKilledPos = null;
     this.barricadeManager = null;
     this.speedMultiplier = 1;
+    this.eliteChanceOverride = null;
+    this.regenPerSec = 0;
+    this._regenTimer = 0;
   }
 
   spawnEnemy(typeId, hp) {
@@ -32,7 +38,7 @@ export class EnemyManager {
     const x = 1240;
     const y = Math.floor(Math.random() * (Y_MAX - Y_MIN + 1)) + Y_MIN;
 
-    const isElite = Math.random() < ELITE_CHANCE;
+    const isElite = Math.random() < (this.eliteChanceOverride ?? ELITE_CHANCE);
     const finalHp = isElite ? hp * 3 : hp;
     const speed = isElite ? type.speed * 1.3 : type.speed;
     const ability = type.ability || null;
@@ -138,6 +144,39 @@ export class EnemyManager {
       }
     }
 
+    // Enemy regeneration (throttled to every 500 ms to limit network traffic)
+    if (this.regenPerSec > 0) {
+      this._regenTimer += deltaMs;
+      if (this._regenTimer >= 500) {
+        this._regenTimer = 0;
+        for (const enemy of this.enemies.values()) {
+          if (enemy.hp < enemy.maxHp) {
+            enemy.hp = Math.min(enemy.hp + this.regenPerSec * 0.5, enemy.maxHp);
+            this.io.emit('enemyHealed', { id: enemy.id, hp: enemy.hp });
+          }
+        }
+      }
+    }
+
+    // Player contact damage — enemies deal damage when touching a player
+    const now = Date.now();
+    for (const player of Object.values(this.getPlayers())) {
+      if (player.downed || player.hp == null) continue;
+      if (now - (player.lastContactDamageAt || 0) < CONTACT_COOLDOWN_MS) continue;
+      for (const enemy of this.enemies.values()) {
+        if (Math.hypot(enemy.x - player.x, enemy.y - player.y) < CONTACT_RADIUS) {
+          player.lastContactDamageAt = now;
+          player.hp = Math.max(0, player.hp - CONTACT_DAMAGE);
+          this.io.emit('playerDamaged', { id: player.id, hp: player.hp, maxHp: player.maxHp });
+          if (player.hp <= 0 && !player.downed) {
+            player.downed = true;
+            this.io.emit('playerDowned', { id: player.id });
+          }
+          break;
+        }
+      }
+    }
+
     const moved = Array.from(this.enemies.values()).map(e => ({ id: e.id, x: e.x, y: e.y }));
     this.io.emit('enemiesMoved', moved);
   }
@@ -155,7 +194,7 @@ export class EnemyManager {
         this.spawnSplitChild(enemy, 1);
       }
 
-      this._lastKilledPos = { x: enemy.x, y: enemy.y, goldValue: enemy.goldValue };
+      this._lastKilledPos = { x: enemy.x, y: enemy.y, goldValue: enemy.goldValue, isElite: enemy.isElite };
       this.enemies.delete(enemyId);
       this.io.emit('enemyDied', { id: enemyId, killedBy: killedBySocketId });
       return true;
@@ -170,4 +209,8 @@ export class EnemyManager {
   getAliveCount() { return this.enemies.size; }
   clear()         { this.enemies.clear(); }
   setSpeedMultiplier(mult) { this.speedMultiplier = mult; }
+  setEliteChanceOverride(v) { this.eliteChanceOverride = v; }
+  clearEliteChanceOverride() { this.eliteChanceOverride = null; }
+  setRegen(v) { this.regenPerSec = v; this._regenTimer = 0; }
+  clearRegen() { this.regenPerSec = 0; }
 }

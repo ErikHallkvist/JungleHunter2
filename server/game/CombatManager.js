@@ -18,6 +18,8 @@ export class CombatManager {
     this.grenadeCooldowns = new Map();
     // combo tracking: socketId -> { count, lastKillTime, timeoutHandle }
     this.combos = new Map();
+    // per-player stats for end-of-game screen
+    this.playerStats = new Map(); // socketId -> { kills: 0, damage: 0 }
   }
 
   _recordKill(socketId) {
@@ -123,29 +125,49 @@ export class CombatManager {
 
     if (bullet.ownerId !== socketId) return;
 
-    const damage = bullet.damage;
+    // Critical hit: 15% chance for 2× damage (requires 'crit' passive)
+    const passives = this.shopManager.getPassives(socketId);
+    let damage = bullet.damage;
+    let isCrit = false;
+    if (passives.has('crit') && Math.random() < 0.15) {
+      damage *= 2;
+      isCrit = true;
+    }
+
     const killed = this.enemyManager.damageEnemy(enemyId, damage, socketId);
 
+    // Track damage stat
+    const stats = this._getStats(socketId);
+    stats.damage += damage;
+
     if (killed) {
+      stats.kills++;
       const mult = this._recordKill(socketId);
-      const enemy = this.enemyManager.getKilledEnemy?.(enemyId);
-      // elite enemies return goldValue directly
-      const baseGold = enemy?.goldValue ?? GOLD_PER_KILL;
+      const killedPos = this.enemyManager.getLastKilledPos();
+      let baseGold = killedPos?.goldValue ?? GOLD_PER_KILL;
+      // Bounty Hunter: 2× gold from elites
+      if (passives.has('bounty_hunter') && killedPos?.isElite) baseGold *= 2;
       this.shopManager.addGold(socketId, baseGold * mult);
 
       // Synergy passive: AoE explosion on kill
-      const passives = this.shopManager.getPassives(socketId);
-      if (passives.has('synergy')) {
-        const killedEnemy = this.enemyManager.getLastKilledPos();
-        if (killedEnemy) {
-          this._synergyExplosion(socketId, killedEnemy.x, killedEnemy.y, 100, damage * 0.5);
-        }
+      if (passives.has('synergy') && killedPos) {
+        this._synergyExplosion(socketId, killedPos.x, killedPos.y, 100, bullet.damage * 0.5);
       }
     }
 
-    this.io.to(socketId).emit('hitConfirmed', { bulletId, enemyId, damage, killed });
+    this.io.to(socketId).emit('hitConfirmed', { bulletId, enemyId, damage, killed, isCrit });
     this.activeBullets.delete(bulletId);
   }
+
+  _getStats(socketId) {
+    if (!this.playerStats.has(socketId)) {
+      this.playerStats.set(socketId, { kills: 0, damage: 0 });
+    }
+    return this.playerStats.get(socketId);
+  }
+
+  getStats(socketId) { return this.playerStats.get(socketId) ?? { kills: 0, damage: 0 }; }
+  getAllStats() { return Object.fromEntries(this.playerStats); }
 
   _synergyExplosion(socketId, cx, cy, radius, damage) {
     for (const enemy of this.enemyManager.getAllEnemies()) {
@@ -217,5 +239,6 @@ export class CombatManager {
       if (c.timeoutHandle) clearTimeout(c.timeoutHandle);
     }
     this.combos.clear();
+    this.playerStats.clear();
   }
 }

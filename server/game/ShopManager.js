@@ -1,6 +1,6 @@
 import { shopWeapons, getWeapon } from '../../shared/weapons.js';
 
-const PASSIVE_PRICES = { boots: 100, ammo_belt: 100, magnet: 120, synergy: 200 };
+const PASSIVE_PRICES = { boots: 100, ammo_belt: 100, magnet: 120, synergy: 200, crit: 150, bounty_hunter: 250 };
 const PASSIVES_LIST = Object.keys(PASSIVE_PRICES);
 
 export class ShopManager {
@@ -21,7 +21,7 @@ export class ShopManager {
 
   initPlayer(socketId) {
     this.playerData.set(socketId, {
-      gold: 0, weapons: ['pistol'], active: 'pistol',
+      gold: 0, goldEarned: 0, weapons: ['pistol'], active: 'pistol',
       upgrades: new Set(), passives: new Set(),
     });
     this.io.to(socketId).emit('goldUpdate', { playerId: socketId, gold: 0, gained: 0 });
@@ -31,10 +31,12 @@ export class ShopManager {
     const data = this.playerData.get(socketId);
     if (!data) return;
     data.gold += amount;
+    data.goldEarned += amount;
     this.io.emit('goldUpdate', { playerId: socketId, gold: data.gold, gained: amount });
   }
 
   getGold(socketId) { return this.playerData.get(socketId)?.gold ?? 0; }
+  getGoldEarned(socketId) { return this.playerData.get(socketId)?.goldEarned ?? 0; }
   getActiveWeapon(socketId) { return this.playerData.get(socketId)?.active ?? 'pistol'; }
   getWeapons(socketId) { return this.playerData.get(socketId)?.weapons ?? ['pistol']; }
   getUpgrades(socketId) { return this.playerData.get(socketId)?.upgrades ?? new Set(); }

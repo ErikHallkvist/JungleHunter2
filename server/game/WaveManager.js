@@ -1,6 +1,6 @@
 import { ENEMY_TYPES } from '../../shared/enemies.js';
 
-const WAVE_EVENTS = ['GOLD-RUSH', 'DARKNESS', 'FRENZY', 'FREEZE'];
+const WAVE_EVENTS = ['GOLD-RUSH', 'DARKNESS', 'FRENZY', 'FREEZE', 'ELITE_STORM', 'HORDE', 'REGENERATION'];
 const BOSS_INTERVAL = 10; // boss wave every 10 waves
 
 export class WaveManager {
@@ -78,6 +78,16 @@ export class WaveManager {
     const { type, enemyCount, isBoss, estimatedGold } = this._getNextWaveInfo(nextNum);
     this.currentWave = nextNum;
 
+    // Respawn any downed players at wave start
+    for (const player of Object.values(this.getPlayers())) {
+      if (player.downed) {
+        player.downed = false;
+        player.hp = 50;
+        player.lastContactDamageAt = 0;
+        this.io.emit('playerRevived', { id: player.id, hp: 50 });
+      }
+    }
+
     // Pick wave event every 3 normal waves (not on boss waves)
     let waveEvent = null;
     if (!isBoss && this.currentWave % 3 === 0) {
@@ -86,7 +96,11 @@ export class WaveManager {
 
     this._applyWaveEvent(waveEvent);
 
-    const actualEnemyCount = waveEvent === 'FREEZE' ? enemyCount * 2 : enemyCount;
+    const isHorde = waveEvent === 'HORDE';
+    const actualEnemyCount = isHorde ? enemyCount * 3
+      : waveEvent === 'FREEZE' ? enemyCount * 2
+      : enemyCount;
+    const hpMult = isHorde ? 0.4 : 1;
 
     this.io.emit('waveStart', {
       waveNumber: this.currentWave,
@@ -107,7 +121,8 @@ export class WaveManager {
     const spawnInterval = setInterval(() => {
       if (!this.gameRunning) { clearInterval(spawnInterval); return; }
       const pick = pool[Math.floor(Math.random() * pool.length)];
-      this.enemyManager.spawnEnemy(pick.id, isBoss ? pick.hp * 5 : pick.hp);
+      const baseHp = isBoss ? pick.hp * 5 : pick.hp;
+      this.enemyManager.spawnEnemy(pick.id, Math.max(1, Math.floor(baseHp * hpMult)));
       spawned++;
       if (spawned >= actualEnemyCount) {
         clearInterval(spawnInterval);
@@ -117,20 +132,21 @@ export class WaveManager {
   }
 
   _applyWaveEvent(event) {
+    this.enemyManager.setSpeedMultiplier(1);
+    this.enemyManager.clearEliteChanceOverride();
+    this.enemyManager.clearRegen();
     switch (event) {
-      case 'FRENZY':
-        this.enemyManager.setSpeedMultiplier(1.6);
-        break;
-      case 'FREEZE':
-        this.enemyManager.setSpeedMultiplier(0.5);
-        break;
-      default:
-        this.enemyManager.setSpeedMultiplier(1);
+      case 'FRENZY':       this.enemyManager.setSpeedMultiplier(1.6); break;
+      case 'FREEZE':       this.enemyManager.setSpeedMultiplier(0.5); break;
+      case 'ELITE_STORM':  this.enemyManager.setEliteChanceOverride(0.5); break;
+      case 'REGENERATION': this.enemyManager.setRegen(10); break;
     }
   }
 
   _clearWaveEvent() {
     this.enemyManager.setSpeedMultiplier(1);
+    this.enemyManager.clearEliteChanceOverride();
+    this.enemyManager.clearRegen();
     this.activeEvent = null;
   }
 
