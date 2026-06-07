@@ -31,18 +31,52 @@ export class EnemySystem {
     socket.socket.on('enemyHealed',   (data) => this.onEnemyHealed(data));
   }
 
-  // Spawn a few blood drops at (x, y) that stay on the ground.
+  // Spawn blood decals at (x, y) plus flying splatter particles.
   spawnBlood(x, y, count = 4) {
+    // Ground pool — draw all decals into one graphics object.
     const gfx = this.scene.add.graphics().setDepth(2);
     for (let i = 0; i < count; i++) {
-      const ox = (Math.random() - 0.5) * 24;
-      const oy = (Math.random() - 0.5) * 18;
-      const r  = 2 + Math.random() * 4;
+      const ox = (Math.random() - 0.5) * 70;
+      const oy = (Math.random() - 0.5) * 55;
+      const r  = 3 + Math.random() * 8;
       const color = BLOOD_COLORS[Math.floor(Math.random() * BLOOD_COLORS.length)];
       gfx.fillStyle(color, 0.75 + Math.random() * 0.25);
-      gfx.fillEllipse(x + ox, y + oy, r * 1.5, r);
+      gfx.fillEllipse(x + ox, y + oy, r * 2.2, r);
     }
     this.bloodDecals.push(gfx);
+
+    // Flying splatter — individual particles that arc outward and splat on landing.
+    const particleCount = Math.ceil(count * 0.8);
+    for (let i = 0; i < particleCount; i++) {
+      const pAngle = Math.random() * Math.PI * 2;
+      const speed  = 80 + Math.random() * 220;
+      const pr     = 2 + Math.random() * 4;
+      const color  = BLOOD_COLORS[Math.floor(Math.random() * BLOOD_COLORS.length)];
+      const duration = 180 + Math.random() * 320;
+      const destX  = x + Math.cos(pAngle) * speed * (duration / 1000);
+      const destY  = y + Math.sin(pAngle) * speed * (duration / 1000);
+
+      const pgfx = this.scene.add.graphics({ x, y }).setDepth(15);
+      pgfx.fillStyle(color, 0.9);
+      pgfx.fillCircle(0, 0, pr);
+
+      this.scene.tweens.add({
+        targets: pgfx,
+        x: destX,
+        y: destY,
+        alpha: 0,
+        duration,
+        ease: 'Quad.easeOut',
+        onComplete: () => {
+          // Leave a tiny permanent splat where the particle landed.
+          const splat = this.scene.add.graphics().setDepth(2);
+          splat.fillStyle(color, 0.6);
+          splat.fillEllipse(pgfx.x, pgfx.y, pr * 3, pr * 1.5);
+          this.bloodDecals.push(splat);
+          pgfx.destroy();
+        },
+      });
+    }
   }
 
   // Remove all blood decals — called on wave start.
@@ -134,7 +168,7 @@ export class EnemySystem {
     eliteLabel?.destroy();
 
     // Large blood pool on death
-    this.spawnBlood(sprite.x, sprite.y, enemy.isElite ? 10 : 6);
+    this.spawnBlood(sprite.x, sprite.y, enemy.isElite ? 40 : 25);
 
     sprite.setTint(0xffffff);
     this.scene.tweens.add({
@@ -164,8 +198,8 @@ export class EnemySystem {
       if (enemy.sprite?.active) enemy.sprite.clearTint();
     });
 
-    // Small blood splatter on hit
-    this.spawnBlood(enemy.sprite.x, enemy.sprite.y, 2);
+    // Blood splatter on hit
+    this.spawnBlood(enemy.sprite.x, enemy.sprite.y, 15);
   }
 
   onEnemyHealed({ id, hp }) {
