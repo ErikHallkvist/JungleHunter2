@@ -1,5 +1,33 @@
 import { getWeapon, PROJECTILES } from '../../shared/weapons.js';
 
+// Per-weapon sound config: { key, rate } — rate shifts pitch (1.0 = normal)
+const WEAPON_SOUND = {
+  pistol:        { key: 'sfx_bullet', rate: 1.1  },
+  revolver:      { key: 'sfx_heavy',  rate: 0.95 },
+  smg:           { key: 'sfx_bullet', rate: 1.25 },
+  shotgun:       { key: 'sfx_pellet', rate: 0.9  },
+  burst_rifle:   { key: 'sfx_bullet', rate: 1.15 },
+  assault_rifle: { key: 'sfx_bullet', rate: 1.05 },
+  double_barrel: { key: 'sfx_pellet', rate: 0.82 },
+  magnum:        { key: 'sfx_heavy',  rate: 0.85 },
+  tactical_smg:  { key: 'sfx_bullet', rate: 1.3  },
+  grenade:       { key: 'sfx_energy', rate: 0.75 },
+  combat_shotgun:{ key: 'sfx_pellet', rate: 0.95 },
+  marksman:      { key: 'sfx_heavy',  rate: 1.05 },
+  lmg:           { key: 'sfx_bullet', rate: 1.0  },
+  sniper:        { key: 'sfx_rail',   rate: 0.9  },
+  auto_shotgun:  { key: 'sfx_pellet', rate: 1.0  },
+  plasma_rifle:  { key: 'sfx_plasma', rate: 0.95 },
+  pulse_rifle:   { key: 'sfx_plasma', rate: 1.2  },
+  railgun:       { key: 'sfx_rail',   rate: 0.75 },
+  flak_cannon:   { key: 'sfx_pellet', rate: 0.78 },
+  laser_minigun: { key: 'sfx_laser',  rate: 1.0  },
+  devastator:    { key: 'sfx_energy', rate: 0.9  },
+};
+
+// Offset from player centre to gun muzzle (pixels forward along shot direction)
+const MUZZLE_OFFSET = 22;
+
 export class BulletSystem {
   constructor(scene) {
     this.scene = scene;
@@ -18,9 +46,11 @@ export class BulletSystem {
     socket.socket.on('grenadeExploded',  (data) => this.onGrenadeExploded(data));
   }
 
-  spawnMuzzleFlash(x, y, angle) {
-    // Draw relative to the graphics object's own origin so scale tween
-    // expands from the correct centre point instead of drifting to (0,0).
+  spawnMuzzleFlash(originX, originY, angle) {
+    // Place flash at gun muzzle, offset forward from player centre
+    const x = originX + Math.cos(angle) * MUZZLE_OFFSET;
+    const y = originY + Math.sin(angle) * MUZZLE_OFFSET;
+
     const gfx = this.scene.add.graphics({ x, y }).setDepth(20);
 
     // Outer flare
@@ -56,31 +86,33 @@ export class BulletSystem {
     });
   }
 
+  playWeaponSound(weaponType, mine) {
+    const cfg = WEAPON_SOUND[weaponType] || { key: 'sfx_bullet', rate: 1.0 };
+    const volume = mine ? 0.5 : 0.25;
+    if (this.scene.cache?.audio.exists(cfg.key)) {
+      this.scene.sound.play(cfg.key, { volume, rate: cfg.rate });
+    }
+  }
+
   onBulletFired({ id, ownerId, x, y, vx, vy, weaponType, bulletType }) {
-    // Resolve the projectile visual (fall back via the weapon def).
     const type = bulletType || getWeapon(weaponType).bulletType;
     const proj = PROJECTILES[type] || PROJECTILES.bullet;
 
-    const sprite = this.scene.add.image(x, y, proj.sprite);
-    sprite.setDisplaySize(proj.w, proj.h);
-    const angle = Math.atan2(vy, vx);
-    sprite.setRotation(angle);
-    sprite.setDepth(8);
+    // Invisible tracker — no sprite rendered for gun bullets
+    const tracker = this.scene.add.rectangle(x, y, 1, 1, 0xffffff, 0).setDepth(0);
 
+    const angle = Math.atan2(vy, vx);
     const mine = ownerId === this.socket.socket.id;
     const isGrenade = weaponType === 'grenade';
 
-    // Play other players' shot sounds (own sound is played by WeaponSystem).
-    // Dedup per owner so a multi-pellet shotgun blast only sounds once.
     if (!mine) {
       const now = Date.now();
       if (now - (this.lastRemoteSound.get(ownerId) || 0) > 70) {
         this.lastRemoteSound.set(ownerId, now);
-        this.scene.playShotSound?.(type, false);
+        this.playWeaponSound(weaponType, false);
         this.spawnMuzzleFlash(x, y, angle);
       }
     } else {
-      // Own bullets: only flash on first pellet of a burst (dedup by 70ms window)
       const now = Date.now();
       if (now - this._lastOwnFlash > 70) {
         this._lastOwnFlash = now;
@@ -89,7 +121,7 @@ export class BulletSystem {
     }
 
     this.bullets.set(id, {
-      sprite, vx, vy, ownerId,
+      sprite: tracker, vx, vy, ownerId,
       w: proj.w, h: proj.h,
       mine,
       isGrenade,
@@ -99,18 +131,16 @@ export class BulletSystem {
   }
 
   onGrenadeExploded({ id, x, y, radius }) {
-    // Remove grenade sprite.
     const bullet = this.bullets.get(id);
     if (bullet) {
       bullet.sprite.destroy();
       this.bullets.delete(id);
     }
 
-    // Explosion VFX: orange circle that expands and fades.
+    // Explosion VFX
     const gfx = this.scene.add.graphics().setDepth(15);
     gfx.fillStyle(0xff6600, 0.75);
     gfx.fillCircle(x, y, radius);
-    // Inner bright core.
     gfx.fillStyle(0xffdd44, 0.9);
     gfx.fillCircle(x, y, radius * 0.35);
 
@@ -134,8 +164,6 @@ export class BulletSystem {
       sprite.x += vx * (delta / 1000);
       sprite.y += vy * (delta / 1000);
 
-      // Grenades expire after fuse time (server sends grenadeExploded before then,
-      // but clean up locally if somehow the sprite is still alive).
       const maxAge = isGrenade ? 1600 : 2500;
 
       if (
@@ -148,10 +176,8 @@ export class BulletSystem {
         continue;
       }
 
-      // Grenades use server-side area detection — clients never report hits for them.
       if (isGrenade) continue;
 
-      // Only the owner reports hits to the server (server validates ownership).
       if (!bullet.processed && bullet.mine) {
         const bulletRect = new Phaser.Geom.Rectangle(
           sprite.x - bullet.w / 2, sprite.y - bullet.h / 2, bullet.w, bullet.h
