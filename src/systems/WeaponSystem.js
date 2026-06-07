@@ -103,7 +103,7 @@ export class WeaponSystem {
 
     this.lastFireTime = now;
 
-    this.scene.playShotSound?.(weapon.bulletType, true);
+    this.scene.bulletSystem?.playWeaponSound(this.currentWeapon, true);
 
     this.socket.socket.emit('playerShoot', {
       weaponType: this.currentWeapon,

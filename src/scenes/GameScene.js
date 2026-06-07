@@ -700,7 +700,7 @@ export class GameScene extends Phaser.Scene {
           targetX: ptr.x,
           targetY: ptr.y,
         });
-        this.playShotSound?.('energy', true);
+        this.bulletSystem?.playWeaponSound('grenade', true);
       }
     }
 
