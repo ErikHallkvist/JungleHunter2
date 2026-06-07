@@ -4,17 +4,21 @@ import { GameScene } from './scenes/GameScene.js';
 
 const config = {
   type: Phaser.AUTO,
-  width: 1280,
-  height: 720,
   backgroundColor: '#0c0c14',
-  pixelArt: true,      // crisp nearest-neighbour scaling for the pixel-art set
+  pixelArt: true,
   roundPixels: true,
+  scale: {
+    mode: Phaser.Scale.FIT,
+    autoCenter: Phaser.Scale.CENTER_BOTH,
+    width: 1280,
+    height: 720,
+  },
   physics: {
     default: 'arcade',
     arcade: { debug: false },
   },
   scene: [LobbyScene, GameScene],
-  parent: document.body,
+  parent: 'game-container',
 };
 
 // Wait for the bundled pixel fonts so Phaser measures glyphs correctly,
