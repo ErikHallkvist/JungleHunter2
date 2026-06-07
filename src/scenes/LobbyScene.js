@@ -57,6 +57,11 @@ export class LobbyScene extends Phaser.Scene {
 
     this.buildUI();
 
+    // Show post-game stats overlay if we have meaningful data
+    if (this.gameResult?.playerStats) {
+      this._showStatsOverlay(this.gameResult);
+    }
+
     if (this.myName) {
       this.nameText.setText(`Playing as: ${this.myName}`);
       this.nameText.setColor(COLORS.gold);
@@ -194,5 +199,58 @@ export class LobbyScene extends Phaser.Scene {
       this.startBtn.setTint(BTN.green).enable();
       this.startBtn.setText('START GAME').setTextColor(COLORS.white);
     }
+  }
+
+  _showStatsOverlay(result) {
+    const stats = result.playerStats;
+    const playerIds = Object.keys(stats);
+    const panelH = Math.min(420, 120 + playerIds.length * 80);
+    const cx = W / 2, cy = H / 2;
+
+    const elements = [];
+
+    const overlay = this.add.rectangle(cx, cy, W, H, 0x000000, 0.7).setDepth(300);
+    const panelRect = this.add.rectangle(cx, cy, 600, panelH, 0x0a0e1a, 0.97)
+      .setStrokeStyle(2, 0x334488).setDepth(301);
+    elements.push(overlay, panelRect);
+
+    elements.push(this.add.text(cx, cy - panelH / 2 + 30, 'GAME OVER — STATS', {
+      fontSize: '22px', color: COLORS.gold, fontFamily: 'monospace', fontStyle: 'bold',
+    }).setOrigin(0.5).setDepth(302));
+
+    elements.push(this.add.text(cx, cy - panelH / 2 + 58, `Waves reached: ${result.waves}`, {
+      fontSize: '16px', color: COLORS.white, fontFamily: 'monospace',
+    }).setOrigin(0.5).setDepth(302));
+
+    // Header row
+    const hdrY = cy - panelH / 2 + 88;
+    [['Player', -200], ['Kills', 20], ['Damage', 120], ['Gold', 220]].forEach(([txt, dx]) => {
+      elements.push(this.add.text(cx + dx, hdrY, txt, {
+        fontSize: '13px', color: COLORS.dim, fontFamily: 'monospace',
+      }).setOrigin(0, 0.5).setDepth(302));
+    });
+
+    playerIds.forEach((id, i) => {
+      const s = stats[id];
+      const rowY = hdrY + 30 + i * 70;
+      const isMe = s.name === this.reusedName;
+      const color = isMe ? COLORS.gold : COLORS.white;
+      elements.push(
+        this.add.text(cx - 200, rowY, s.name + (isMe ? ' (you)' : ''), {
+          fontSize: '17px', color, fontFamily: 'monospace',
+        }).setOrigin(0, 0.5).setDepth(302),
+        this.add.text(cx + 20,  rowY, `${s.kills}`,      { fontSize: '17px', color, fontFamily: 'monospace' }).setOrigin(0, 0.5).setDepth(302),
+        this.add.text(cx + 120, rowY, `${s.damage}`,     { fontSize: '17px', color, fontFamily: 'monospace' }).setOrigin(0, 0.5).setDepth(302),
+        this.add.text(cx + 220, rowY, `${s.goldEarned}g`, { fontSize: '17px', color, fontFamily: 'monospace' }).setOrigin(0, 0.5).setDepth(302),
+      );
+    });
+
+    elements.push(this.add.text(cx, cy + panelH / 2 - 22, 'Auto-closing in 8 seconds — click to dismiss', {
+      fontSize: '12px', color: COLORS.dim, fontFamily: 'monospace',
+    }).setOrigin(0.5).setDepth(302));
+
+    const dismiss = () => elements.forEach(e => e?.destroy());
+    overlay.setInteractive().on('pointerdown', dismiss);
+    this.time.delayedCall(8000, dismiss);
   }
 }

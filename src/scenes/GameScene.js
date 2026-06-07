@@ -75,6 +75,8 @@ export class GameScene extends Phaser.Scene {
     this.passives = new Set();
     this._kills = 0;
     this._maxWave = 0;
+    this._damageDealt = 0;
+    this._goldEarned = 0;
 
     this.createRoom();
     this.createPlayerAnimations();
@@ -97,6 +99,21 @@ export class GameScene extends Phaser.Scene {
 
     // Grenade throw (Q)
     this.qKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.Q);
+
+    // Revive downed teammate (F)
+    this.fKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.F);
+    this.fKey.on('down', () => {
+      if (!this.localSprite || this.gameEnded) return;
+      const local = this.players[this.localId];
+      if (local?.downed) return;
+      for (const [id, p] of Object.entries(this.players)) {
+        if (id === this.localId || !p.downed) continue;
+        if (Math.hypot(p.sprite.x - this.localSprite.x, p.sprite.y - this.localSprite.y) < 80) {
+          this.socket.socket.emit('revivePlayer', { targetId: id });
+          break;
+        }
+      }
+    });
 
     // Escape closes all open shop/ability windows
     this.escKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ESC);
@@ -138,9 +155,26 @@ export class GameScene extends Phaser.Scene {
     this.goldUI.init(this.socket, this.socket.id);
 
     // Track passives for speed/cooldown effects
-    this.socket.socket.on('passiveResult', ({ success, passives }) => {
+    this._passiveResultHandler = ({ success, passives }) => {
       if (success && passives) passives.forEach(id => this.passives.add(id));
-    });
+    };
+    this.socket.socket.on('passiveResult', this._passiveResultHandler);
+
+    // Track damage dealt for end-of-game stats
+    this._hitConfirmedHandler = ({ damage }) => { this._damageDealt += damage; };
+    this.socket.socket.on('hitConfirmed', this._hitConfirmedHandler);
+
+    // Track gold earned
+    this._goldUpdateHandler = ({ playerId, gained }) => {
+      if (playerId === this.socket.socket.id && gained > 0) this._goldEarned += gained;
+    };
+    this.socket.socket.on('goldUpdate', this._goldUpdateHandler);
+
+    // "DOWNED" overlay for the local player
+    this.downedText = this.add.text(640, 360, 'DOWNED\n[F] teammate can revive you\nRespawns next wave', {
+      fontSize: '28px', color: '#ff4444', fontFamily: FONT_HEAD,
+      stroke: '#000000', strokeThickness: 6, align: 'center',
+    }).setOrigin(0.5).setDepth(200).setAlpha(0);
 
     this.gameEnded = false;
 
@@ -155,16 +189,21 @@ export class GameScene extends Phaser.Scene {
       gamePlayerMoved: ({ id, x, y }) => {
         const p = this.players[id];
         if (p && id !== this.localId) {
-          if (x < p.sprite.x) p.sprite.setFlipX(true);
-          else if (x > p.sprite.x) p.sprite.setFlipX(false);
+          if (!p.downed) {
+            if (x < p.sprite.x) p.sprite.setFlipX(true);
+            else if (x > p.sprite.x) p.sprite.setFlipX(false);
+            if (!p.sprite.anims.isPlaying) p.sprite.play('player_walk');
+            clearTimeout(p._stopAnimTimer);
+            p._stopAnimTimer = setTimeout(() => {
+              if (p.sprite?.active) { p.sprite.stop(); p.sprite.setFrame(0); }
+            }, 300);
+          }
           p.sprite.setPosition(x, y);
           p.nameText.setPosition(x, y - PLAYER_H / 2 - 8);
+          const barY = y + PLAYER_H / 2 + 6;
+          p.hpBarBg.setPosition(x, barY);
+          p.hpBarFg.setPosition(x - 17, barY);
           this.positionWeapon(p);
-          if (!p.sprite.anims.isPlaying) p.sprite.play('player_walk');
-          clearTimeout(p._stopAnimTimer);
-          p._stopAnimTimer = setTimeout(() => {
-            if (p.sprite?.active) { p.sprite.stop(); p.sprite.setFrame(0); }
-          }, 300);
         }
       },
       gamePlayerLeft: (id) => {
@@ -174,8 +213,35 @@ export class GameScene extends Phaser.Scene {
           p.sprite.destroy();
           p.nameText.destroy();
           p.weaponSprite?.destroy();
+          p.hpBarBg?.destroy();
+          p.hpBarFg?.destroy();
           delete this.players[id];
         }
+      },
+      playerDamaged: ({ id, hp, maxHp }) => {
+        const p = this.players[id];
+        if (!p) return;
+        p.hp = hp; p.maxHp = maxHp;
+        this._updateHpBar(p);
+      },
+      playerDowned: ({ id }) => {
+        const p = this.players[id];
+        if (!p) return;
+        p.downed = true;
+        p.hp = 0;
+        this._updateHpBar(p);
+        p.sprite.setAlpha(0.35);
+        if (p.sprite.anims.isPlaying) { p.sprite.stop(); p.sprite.setFrame(0); }
+        if (id === this.localId) this.downedText?.setAlpha(1);
+      },
+      playerRevived: ({ id, hp }) => {
+        const p = this.players[id];
+        if (!p) return;
+        p.downed = false;
+        p.hp = hp;
+        this._updateHpBar(p);
+        p.sprite.setAlpha(1);
+        if (id === this.localId) this.downedText?.setAlpha(0);
       },
       // A player (anyone) changed their active weapon — update the visible gun.
       onWeaponChange: ({ playerId, weaponId }) => this.setPlayerWeapon(playerId, weaponId),
@@ -185,11 +251,18 @@ export class GameScene extends Phaser.Scene {
       },
       enemyLeaked: () => this.playSfx('sfx_leak', 0.5),
       gameOver: () => this.showGameOver(),
-      returnToLobby: () => {
+      returnToLobby: ({ playerStats, wavesReached } = {}) => {
         this.scene.start('LobbyScene', {
           socket: this.socket,
           myName: this.myName,
-          gameResult: { waves: this._maxWave, kills: this._kills, name: this.myName },
+          gameResult: {
+            waves: wavesReached ?? this._maxWave,
+            kills: this._kills,
+            name: this.myName,
+            damage: this._damageDealt,
+            goldEarned: this._goldEarned,
+            playerStats,
+          },
         });
       },
       waveStart: ({ waveNumber }) => {
@@ -213,6 +286,9 @@ export class GameScene extends Phaser.Scene {
     s.on('returnToLobby', this._handlers.returnToLobby);
     s.on('waveStart', this._handlers.waveStart);
     s.on('enemyDied', this._handlers.enemyDied);
+    s.on('playerDamaged', this._handlers.playerDamaged);
+    s.on('playerDowned', this._handlers.playerDowned);
+    s.on('playerRevived', this._handlers.playerRevived);
 
     // Tear everything down cleanly when the scene stops (return to lobby).
     this.events.once('shutdown', () => this.cleanup());
@@ -263,8 +339,14 @@ export class GameScene extends Phaser.Scene {
       s.off('returnToLobby', this._handlers.returnToLobby);
       s.off('waveStart', this._handlers.waveStart);
       s.off('enemyDied', this._handlers.enemyDied);
-      s.off('passiveResult');
+      s.off('playerDamaged', this._handlers.playerDamaged);
+      s.off('playerDowned', this._handlers.playerDowned);
+      s.off('playerRevived', this._handlers.playerRevived);
+      s.off('passiveResult', this._passiveResultHandler);
+      s.off('hitConfirmed', this._hitConfirmedHandler);
+      s.off('goldUpdate', this._goldUpdateHandler);
     }
+    this.downedText?.destroy();
     this.gameMusic?.stop();
     this.enemySystem?.destroy();
     this.bulletSystem?.destroy();
@@ -528,10 +610,32 @@ export class GameScene extends Phaser.Scene {
       .setDisplaySize(30, 13)
       .setDepth(9);
 
-    const entry = { sprite, nameText, weaponSprite, isLocal };
+    // HP bar (background + foreground), positioned below the sprite
+    const barY = playerData.y + PLAYER_H / 2 + 6;
+    const hpBarBg = this.add.rectangle(playerData.x, barY, 34, 4, 0x222222, 0.85).setDepth(11);
+    const hpBarFg = this.add.rectangle(playerData.x - 17, barY, 34, 4, 0x44ff88, 1)
+      .setOrigin(0, 0.5).setDepth(12);
+
+    const entry = {
+      sprite, nameText, weaponSprite, isLocal,
+      hpBarBg, hpBarFg,
+      hp: playerData.hp ?? 100, maxHp: playerData.maxHp ?? 100,
+      downed: false,
+    };
     this.players[playerData.id] = entry;
     this.positionWeapon(entry);
+    this._updateHpBar(entry);
   }
+
+  _updateHpBar(entry) {
+    const ratio = entry.maxHp > 0 ? Math.max(0, entry.hp / entry.maxHp) : 0;
+    const barW = 34;
+    entry.hpBarFg.setSize(barW * ratio, 4);
+    const color = ratio > 0.5 ? 0x44ff88 : ratio > 0.25 ? 0xffaa22 : 0xff3333;
+    entry.hpBarFg.setFillStyle(color);
+  }
+
+  isLocalPlayerDowned() { return !!this.players[this.localId]?.downed; }
 
   // Place the weapon sprite at the player's right hand (always faces right).
   positionWeapon(entry) {
@@ -593,6 +697,15 @@ export class GameScene extends Phaser.Scene {
 
     body.setVelocity(0);
 
+    const local = this.players[this.localId];
+
+    // When downed: freeze in place, disable shooting
+    if (local?.downed) {
+      this.enemySystem.update();
+      this.bulletSystem.update(delta);
+      return;
+    }
+
     const currentSpeed = this.passives.has('boots') ? SPEED_BOOTS : SPEED;
     if (now < this.dashActiveUntil) {
       body.setVelocity(this.dashVx, this.dashVy);
@@ -604,18 +717,18 @@ export class GameScene extends Phaser.Scene {
       else if (this.wasd.down.isDown) body.setVelocityY(currentSpeed);
     }
 
-    const local = this.players[this.localId];
+    const moving = body.velocity.x !== 0 || body.velocity.y !== 0;
+
     if (local) {
       local.nameText.setPosition(
         this.localSprite.x,
         this.localSprite.y - PLAYER_H / 2 - 8
       );
+      const barY = this.localSprite.y + PLAYER_H / 2 + 6;
+      local.hpBarBg.setPosition(this.localSprite.x, barY);
+      local.hpBarFg.setPosition(this.localSprite.x - 17, barY);
       this.positionWeapon(local);
-    }
 
-    const moving = body.velocity.x !== 0 || body.velocity.y !== 0;
-
-    if (local) {
       if (body.velocity.x < 0) local.sprite.setFlipX(true);
       else if (body.velocity.x > 0) local.sprite.setFlipX(false);
 

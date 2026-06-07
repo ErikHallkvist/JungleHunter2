@@ -1,10 +1,20 @@
 import { FONT, FONT_HEAD, COLORS } from './theme.js';
 
 const EVENT_COLORS = {
-  'GOLD-RUSH': '#f0c020',
-  'DARKNESS': '#3355cc',
-  'FRENZY':   '#ff4400',
-  'FREEZE':   '#44ccff',
+  'GOLD-RUSH':    '#f0c020',
+  'DARKNESS':     '#3355cc',
+  'FRENZY':       '#ff4400',
+  'FREEZE':       '#44ccff',
+  'ELITE_STORM':  '#ffcc00',
+  'HORDE':        '#ff2200',
+  'REGENERATION': '#44ff88',
+};
+
+const EVENT_OVERLAYS = {
+  'DARKNESS':     [0x000022, 0.72],
+  'ELITE_STORM':  [0x443300, 0.22],
+  'HORDE':        [0x330000, 0.28],
+  'REGENERATION': [0x003300, 0.22],
 };
 
 export class WaveUI {
@@ -141,9 +151,8 @@ export class WaveUI {
 
   _applyEventVisual(event) {
     this._clearEventVisual();
-    if (event === 'DARKNESS') {
-      this._darknessOverlay = this.scene.add.rectangle(640, 360, 1280, 720, 0x000022, 0.72).setDepth(20);
-    }
+    const ov = EVENT_OVERLAYS[event];
+    if (ov) this._darknessOverlay = this.scene.add.rectangle(640, 360, 1280, 720, ov[0], ov[1]).setDepth(20);
   }
 
   _clearEventVisual() {

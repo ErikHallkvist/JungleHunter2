@@ -91,6 +91,7 @@ export class WeaponSystem {
     if (!this.localPlayerSprite) return;
     if (this.scene.gameEnded) return;
     if (this.scene.shopUI?.isOpen) return;
+    if (this.scene.isLocalPlayerDowned()) return;
 
     const now = Date.now();
     const weapon = getWeapon(this.currentWeapon);

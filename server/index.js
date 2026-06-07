@@ -76,10 +76,23 @@ function triggerGameOver() {
   io.emit('gameOver', { reason: 'leaked' });
   console.log(`GAME OVER — ${MAX_LEAKS} fiender passerade banan`);
 
+  // Collect end-of-game stats before resetting
+  const playerStats = {};
+  for (const [id, player] of Object.entries(gamePlayers)) {
+    const combat = combatManager?.getStats(id) ?? { kills: 0, damage: 0 };
+    playerStats[id] = {
+      name: player.name,
+      kills: combat.kills,
+      damage: Math.round(combat.damage),
+      goldEarned: shopManager?.getGoldEarned(id) ?? 0,
+    };
+  }
+  const wavesReached = waveManager?.getCurrentWave() ?? 0;
+
   // Give clients a few seconds to show GAME OVER, then send them to the lobby.
   setTimeout(() => {
     resetGame();
-    io.emit('returnToLobby');
+    io.emit('returnToLobby', { playerStats, wavesReached });
     broadcastLobbyUpdate();
   }, 4000);
 }
@@ -93,6 +106,10 @@ function resetGame() {
   gameInProgress = false;
   defeatTriggered = false;
   Object.keys(gamePlayers).forEach((k) => delete gamePlayers[k]);
+}
+
+function isPlayerActive(socketId) {
+  return gameInProgress && !gamePlayers[socketId]?.downed;
 }
 
 io.on('connection', (socket) => {
@@ -118,7 +135,10 @@ io.on('connection', (socket) => {
     players.forEach((player, i) => {
       const spawnX = SPAWN_X_MIN + Math.random() * (SPAWN_X_MAX - SPAWN_X_MIN);
       const spawnY = ROOM.y + 80 + (i / Math.max(count - 1, 1)) * (ROOM.height - 160);
-      gamePlayers[player.id] = { id: player.id, name: player.name, x: spawnX, y: spawnY, weapon: 'pistol' };
+      gamePlayers[player.id] = {
+        id: player.id, name: player.name, x: spawnX, y: spawnY, weapon: 'pistol',
+        hp: 100, maxHp: 100, downed: false, lastContactDamageAt: 0,
+      };
     });
 
     initGame();
@@ -144,15 +164,11 @@ io.on('connection', (socket) => {
   });
 
   socket.on('playerShoot', (data) => {
-    if (gameInProgress && combatManager) {
-      combatManager.handleShot(socket.id, data);
-    }
+    if (isPlayerActive(socket.id) && combatManager) combatManager.handleShot(socket.id, data);
   });
 
   socket.on('hitEnemy', (data) => {
-    if (gameInProgress && combatManager) {
-      combatManager.handleHitEnemy(socket.id, data);
-    }
+    if (isPlayerActive(socket.id) && combatManager) combatManager.handleHitEnemy(socket.id, data);
   });
 
   socket.on('purchaseWeapon', ({ weaponId }) => {
@@ -185,8 +201,20 @@ io.on('connection', (socket) => {
     }
   });
 
+  socket.on('revivePlayer', ({ targetId }) => {
+    if (!gameInProgress) return;
+    const target = gamePlayers[targetId];
+    const reviver = gamePlayers[socket.id];
+    if (!target || !reviver || !target.downed || reviver.downed) return;
+    if (Math.hypot(reviver.x - target.x, reviver.y - target.y) > 80) return;
+    target.downed = false;
+    target.hp = 50;
+    target.lastContactDamageAt = 0;
+    io.emit('playerRevived', { id: targetId, hp: 50 });
+  });
+
   socket.on('throwGrenade', (data) => {
-    if (gameInProgress && combatManager && shopManager?.getWeapons(socket.id).includes('grenade')) {
+    if (isPlayerActive(socket.id) && combatManager && shopManager?.getWeapons(socket.id).includes('grenade')) {
       combatManager.handleGrenadeThrow(socket.id, data);
     }
   });
