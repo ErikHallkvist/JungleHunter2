@@ -108,6 +108,10 @@ function resetGame() {
   Object.keys(gamePlayers).forEach((k) => delete gamePlayers[k]);
 }
 
+function isPlayerActive(socketId) {
+  return gameInProgress && !gamePlayers[socketId]?.downed;
+}
+
 io.on('connection', (socket) => {
   const name = getUniqueName();
   lobby[socket.id] = { id: socket.id, name };
@@ -160,15 +164,11 @@ io.on('connection', (socket) => {
   });
 
   socket.on('playerShoot', (data) => {
-    if (gameInProgress && combatManager && !gamePlayers[socket.id]?.downed) {
-      combatManager.handleShot(socket.id, data);
-    }
+    if (isPlayerActive(socket.id) && combatManager) combatManager.handleShot(socket.id, data);
   });
 
   socket.on('hitEnemy', (data) => {
-    if (gameInProgress && combatManager && !gamePlayers[socket.id]?.downed) {
-      combatManager.handleHitEnemy(socket.id, data);
-    }
+    if (isPlayerActive(socket.id) && combatManager) combatManager.handleHitEnemy(socket.id, data);
   });
 
   socket.on('purchaseWeapon', ({ weaponId }) => {
@@ -214,7 +214,7 @@ io.on('connection', (socket) => {
   });
 
   socket.on('throwGrenade', (data) => {
-    if (gameInProgress && combatManager && !gamePlayers[socket.id]?.downed && shopManager?.getWeapons(socket.id).includes('grenade')) {
+    if (isPlayerActive(socket.id) && combatManager && shopManager?.getWeapons(socket.id).includes('grenade')) {
       combatManager.handleGrenadeThrow(socket.id, data);
     }
   });

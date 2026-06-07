@@ -155,16 +155,16 @@ export class GameScene extends Phaser.Scene {
     this.goldUI.init(this.socket, this.socket.id);
 
     // Track passives for speed/cooldown effects
-    this.socket.socket.on('passiveResult', ({ success, passives }) => {
+    this._passiveResultHandler = ({ success, passives }) => {
       if (success && passives) passives.forEach(id => this.passives.add(id));
-    });
+    };
+    this.socket.socket.on('passiveResult', this._passiveResultHandler);
 
     // Track damage dealt for end-of-game stats
-    this.socket.socket.on('hitConfirmed', ({ damage }) => {
-      this._damageDealt += damage;
-    });
+    this._hitConfirmedHandler = ({ damage }) => { this._damageDealt += damage; };
+    this.socket.socket.on('hitConfirmed', this._hitConfirmedHandler);
 
-    // Track gold earned — stored by ref so cleanup removes only this listener.
+    // Track gold earned
     this._goldUpdateHandler = ({ playerId, gained }) => {
       if (playerId === this.socket.socket.id && gained > 0) this._goldEarned += gained;
     };
@@ -342,8 +342,8 @@ export class GameScene extends Phaser.Scene {
       s.off('playerDamaged', this._handlers.playerDamaged);
       s.off('playerDowned', this._handlers.playerDowned);
       s.off('playerRevived', this._handlers.playerRevived);
-      s.off('passiveResult');
-      s.off('hitConfirmed');
+      s.off('passiveResult', this._passiveResultHandler);
+      s.off('hitConfirmed', this._hitConfirmedHandler);
       s.off('goldUpdate', this._goldUpdateHandler);
     }
     this.downedText?.destroy();
@@ -635,6 +635,8 @@ export class GameScene extends Phaser.Scene {
     entry.hpBarFg.setFillStyle(color);
   }
 
+  isLocalPlayerDowned() { return !!this.players[this.localId]?.downed; }
+
   // Place the weapon sprite at the player's right hand (always faces right).
   positionWeapon(entry) {
     if (!entry.weaponSprite) return;
@@ -715,6 +717,8 @@ export class GameScene extends Phaser.Scene {
       else if (this.wasd.down.isDown) body.setVelocityY(currentSpeed);
     }
 
+    const moving = body.velocity.x !== 0 || body.velocity.y !== 0;
+
     if (local) {
       local.nameText.setPosition(
         this.localSprite.x,
@@ -724,11 +728,7 @@ export class GameScene extends Phaser.Scene {
       local.hpBarBg.setPosition(this.localSprite.x, barY);
       local.hpBarFg.setPosition(this.localSprite.x - 17, barY);
       this.positionWeapon(local);
-    }
 
-    const moving = body.velocity.x !== 0 || body.velocity.y !== 0;
-
-    if (local) {
       if (body.velocity.x < 0) local.sprite.setFlipX(true);
       else if (body.velocity.x > 0) local.sprite.setFlipX(false);
 

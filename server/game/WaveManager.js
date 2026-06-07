@@ -141,14 +141,10 @@ export class WaveManager {
       case 'ELITE_STORM':  this.enemyManager.setEliteChanceOverride(0.5); break;
       case 'REGENERATION': this.enemyManager.setRegen(10); break;
     }
+    this.activeEvent = event ?? null;
   }
 
-  _clearWaveEvent() {
-    this.enemyManager.setSpeedMultiplier(1);
-    this.enemyManager.clearEliteChanceOverride();
-    this.enemyManager.clearRegen();
-    this.activeEvent = null;
-  }
+  _clearWaveEvent() { this._applyWaveEvent(null); }
 
   startCountdown(seconds, onComplete) {
     // Send preview of next wave during countdown

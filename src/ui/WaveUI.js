@@ -10,6 +10,13 @@ const EVENT_COLORS = {
   'REGENERATION': '#44ff88',
 };
 
+const EVENT_OVERLAYS = {
+  'DARKNESS':     [0x000022, 0.72],
+  'ELITE_STORM':  [0x443300, 0.22],
+  'HORDE':        [0x330000, 0.28],
+  'REGENERATION': [0x003300, 0.22],
+};
+
 export class WaveUI {
   constructor(scene) {
     this.scene = scene;
@@ -144,15 +151,8 @@ export class WaveUI {
 
   _applyEventVisual(event) {
     this._clearEventVisual();
-    if (event === 'DARKNESS') {
-      this._darknessOverlay = this.scene.add.rectangle(640, 360, 1280, 720, 0x000022, 0.72).setDepth(20);
-    } else if (event === 'ELITE_STORM') {
-      this._darknessOverlay = this.scene.add.rectangle(640, 360, 1280, 720, 0x443300, 0.22).setDepth(20);
-    } else if (event === 'HORDE') {
-      this._darknessOverlay = this.scene.add.rectangle(640, 360, 1280, 720, 0x330000, 0.28).setDepth(20);
-    } else if (event === 'REGENERATION') {
-      this._darknessOverlay = this.scene.add.rectangle(640, 360, 1280, 720, 0x003300, 0.22).setDepth(20);
-    }
+    const ov = EVENT_OVERLAYS[event];
+    if (ov) this._darknessOverlay = this.scene.add.rectangle(640, 360, 1280, 720, ov[0], ov[1]).setDepth(20);
   }
 
   _clearEventVisual() {
