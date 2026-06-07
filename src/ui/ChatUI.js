@@ -28,7 +28,7 @@ export class ChatUI {
     el.style.cssText = [
       'position:fixed',
       'bottom:10px',
-      'left:10px',
+      'right:290px',
       'width:300px',
       'display:flex',
       'flex-direction:column',
