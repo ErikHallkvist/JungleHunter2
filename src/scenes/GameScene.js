@@ -324,8 +324,8 @@ export class GameScene extends Phaser.Scene {
       fontFamily: FONT,
     }).setOrigin(0.5).setDepth(200);
 
-    // Return to lobby after 3s (server also sends returnToLobby ~4s after gameOver)
-    this.time.delayedCall(3000, () => {
+    // Use native setTimeout — immune to Phaser scene pausing/freezing
+    this._gameOverTimer = setTimeout(() => {
       const chatMessages = this.chatUI?.getMessages() ?? [];
       this.scene.start('LobbyScene', {
         socket: this.socket,
@@ -333,10 +333,11 @@ export class GameScene extends Phaser.Scene {
         chatMessages,
         gameResult: { waves: this._maxWave, kills: this._kills, name: this.myName },
       });
-    });
+    }, 3000);
   }
 
   cleanup() {
+    if (this._gameOverTimer) { clearTimeout(this._gameOverTimer); this._gameOverTimer = null; }
     const s = this.socket?.socket;
     if (s && this._handlers) {
       s.off('gamePlayerMoved', this._handlers.gamePlayerMoved);
