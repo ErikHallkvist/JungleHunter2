@@ -48,7 +48,7 @@ export class GoldUI {
       if (combo >= 10) mult = 4;
       else if (combo >= 5) mult = 3;
       else if (combo >= 2) mult = 2;
-      this.comboText.setText(`KOMBO x${combo}  (x${mult} GULD)`).setAlpha(1);
+      this.comboText.setText(`COMBO x${combo}  (x${mult} GOLD)`).setAlpha(1);
       if (this._comboHideTimer) clearTimeout(this._comboHideTimer);
       this._comboHideTimer = setTimeout(() => {
         this.comboText?.setAlpha(0);

@@ -207,7 +207,6 @@ export class GameScene extends Phaser.Scene {
 
     this.playSfx('sfx_gameover', 0.6);
 
-    // Dark overlay + big red GAME OVER text.
     this.add.rectangle(640, 360, 1280, 720, 0x000000, 0.6).setDepth(199);
     this.add.text(640, 332, 'GAME OVER', {
       fontSize: '64px',
@@ -221,6 +220,17 @@ export class GameScene extends Phaser.Scene {
       color: COLORS.white,
       fontFamily: FONT,
     }).setOrigin(0.5).setDepth(200);
+
+    // Client-side fallback: return to lobby after 5s even if server event is lost
+    this.time.delayedCall(5000, () => {
+      if (this.scene.isActive('GameScene')) {
+        this.scene.start('LobbyScene', {
+          socket: this.socket,
+          myName: this.myName,
+          gameResult: { waves: this._maxWave, kills: this._kills, name: this.myName },
+        });
+      }
+    });
   }
 
   cleanup() {

@@ -1,10 +1,10 @@
 import { FONT, FONT_HEAD, COLORS } from './theme.js';
 
 const EVENT_COLORS = {
-  'GULD-RUSH': '#f0c020',
-  'MÖRKER': '#3355cc',
-  'HETS': '#ff4400',
-  'FRYSNING': '#44ccff',
+  'GOLD-RUSH': '#f0c020',
+  'DARKNESS': '#3355cc',
+  'FRENZY':   '#ff4400',
+  'FREEZE':   '#44ccff',
 };
 
 export class WaveUI {
@@ -62,17 +62,17 @@ export class WaveUI {
     });
 
     socket.socket.on('waveCountdown', ({ seconds }) => {
-      this.countdownText.setText(`Nästa wave om: ${seconds}`).setAlpha(1);
+      this.countdownText.setText(`Next wave in: ${seconds}`).setAlpha(1);
     });
 
     socket.socket.on('waveComplete', ({ waveNumber }) => {
       this._clearEventVisual();
-      this.flashText.setText('WAVE KLAR!').setAlpha(1);
+      this.flashText.setText('WAVE COMPLETE!').setAlpha(1);
       this.scene.tweens.add({ targets: this.flashText, alpha: 0, duration: 1500, delay: 500 });
     });
 
-    socket.socket.on('wavePreview', ({ nextWave, enemyName, enemyCount, estimatedGold, isBoss }) => {
-      this._showPreview(nextWave, enemyName, enemyCount, estimatedGold, isBoss);
+    socket.socket.on('wavePreview', (data) => {
+      this._showPreview(data.nextWave, data.enemyName, data.enemyCount, data.estimatedGold, data.isBoss);
     });
 
     const decrement = () => {
@@ -107,12 +107,12 @@ export class WaveUI {
   }
 
   _showPreview(nextWave, enemyName, enemyCount, estimatedGold, isBoss) {
-    const titleText = isBoss ? '⚠ BOSS WAVE' : `WAVE ${nextWave} FÖRHANDSGRANSKNING`;
+    const titleText = isBoss ? '⚠ BOSS WAVE' : `WAVE ${nextWave} PREVIEW`;
     const titleColor = isBoss ? '#ff2200' : COLORS.gold;
     this._previewTitle.setText(titleText).setColor(titleColor);
-    this._previewLine1.setText(enemyName ? `Fiendtyp: ${enemyName}` : '');
-    this._previewLine2.setText(`Antal fiender: ${isBoss ? enemyCount + ' (BOSS!)' : enemyCount}`);
-    this._previewLine3.setText(`Estimerat guld: ~${estimatedGold}g`);
+    this._previewLine1.setText(enemyName ? `Enemy: ${enemyName}` : '');
+    this._previewLine2.setText(`Count: ${isBoss ? enemyCount + ' (BOSS!)' : enemyCount}`);
+    this._previewLine3.setText(`Est. gold: ~${estimatedGold}g`);
     [this._previewBg, this._previewTitle, this._previewLine1, this._previewLine2, this._previewLine3]
       .forEach(o => o.setAlpha(1));
   }
@@ -141,7 +141,7 @@ export class WaveUI {
 
   _applyEventVisual(event) {
     this._clearEventVisual();
-    if (event === 'MÖRKER') {
+    if (event === 'DARKNESS') {
       this._darknessOverlay = this.scene.add.rectangle(640, 360, 1280, 720, 0x000022, 0.72).setDepth(20);
     }
   }
