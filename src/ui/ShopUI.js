@@ -2,6 +2,8 @@ import Phaser from 'phaser';
 import { shopWeapons, getWeapon } from '../../shared/weapons.js';
 import { COLORS, BTN, panel, heading, label, button } from './theme.js';
 
+const INITIAL_VISIBLE = 4;
+
 export class ShopUI {
   constructor(scene, socket) {
     this.scene = scene;
@@ -11,6 +13,7 @@ export class ShopUI {
     this.ownedWeapons = ['pistol'];
     this.activeWeapon = 'pistol';
     this.upgradedWeapons = new Set();
+    this.visibleCount = INITIAL_VISIBLE;
     this.elements = [];
     this.rows = [];
     this.feedbackText = null;
@@ -24,6 +27,7 @@ export class ShopUI {
     this.currentGold = 0;
     this.ownedWeapons = ['pistol'];
     this.activeWeapon = 'pistol';
+    this.visibleCount = INITIAL_VISIBLE;
     this.elements = [];
     this.rows = [];
 
@@ -56,7 +60,7 @@ export class ShopUI {
       const r = i % PER_COL;
       const x0 = COL_X[col];
       const y = TOP + r * ROW_H;
-      this.buildRow(w, x0, y);
+      this.buildRow(w, x0, y, i);
     });
 
     // Feedback + close hint
@@ -93,6 +97,10 @@ export class ShopUI {
         this.goldText?.setText(`GOLD: ${newGold}`);
         this.showFeedback(`Bought ${getWeapon(weaponId).name}!`, COLORS.green);
         this.scene.playSfx?.('sfx_cash', 0.55);
+        // Expand visible weapons: show all up to 4 beyond the purchased weapon
+        const idx = this.rows.findIndex(r => r.weapon.id === weaponId);
+        if (idx >= 0) this.visibleCount = Math.max(this.visibleCount, idx + 1 + 4);
+        this.refreshDiscovery();
         this.refreshItemStates();
       } else {
         this.showFeedback(error === 'Not enough gold' ? 'Not enough gold!' : (error || 'Purchase failed'), COLORS.red);
@@ -124,12 +132,21 @@ export class ShopUI {
     this.socket.socket.on('weaponSwitched', onActive);
   }
 
-  buildRow(w, x0, y) {
+  buildRow(w, x0, y, idx) {
+    // Undiscovered placeholder: grey "?" instead of weapon icon
+    const qmark = label(this.scene, x0 + 30, y, '?', {
+      size: 28, color: '#555577', origin: [0.5, 0.5],
+    }).setDepth(103);
+
     const icon = this.scene.add.image(x0 + 30, y, w.icon)
       .setDisplaySize(56, 25).setDepth(103);
 
     const name = label(this.scene, x0 + 64, y - 9, w.name, {
       size: 21, color: COLORS.white, origin: [0, 0.5],
+    }).setDepth(103);
+
+    const undiscName = label(this.scene, x0 + 64, y - 9, 'Undiscovered', {
+      size: 21, color: '#555577', origin: [0, 0.5],
     }).setDepth(103);
 
     const stats = label(
@@ -147,7 +164,7 @@ export class ShopUI {
       onClick: () => this.onRowClick(w.id),
     });
 
-    // Upgrade button (★) — hidden/disabled for pistol
+    // Upgrade button (★)
     let upgradeBtn = null;
     if (w.id !== 'pistol') {
       const upgradeCost = Math.floor(w.price * 0.6);
@@ -157,13 +174,48 @@ export class ShopUI {
       });
     }
 
-    const parts = [icon, name, stats, price, btn.bg, btn.txt];
+    // parts = everything shown when the row is visible (discovered or not)
+    const parts = [icon, name, stats, price, btn.bg, btn.txt, qmark, undiscName];
     if (upgradeBtn) parts.push(upgradeBtn.bg, upgradeBtn.txt);
-    const row = { weapon: w, btn, upgradeBtn, price, parts };
+    const row = { weapon: w, idx, btn, upgradeBtn, price, parts, icon, name, stats, qmark, undiscName, discovered: false };
     this.rows.push(row);
+
+    // Apply initial discovery state
+    this._applyDiscovery(row, idx < INITIAL_VISIBLE);
+  }
+
+  _applyDiscovery(row, discovered) {
+    row.discovered = discovered;
+    row.icon.setVisible(discovered);
+    row.name.setVisible(discovered);
+    row.stats.setVisible(discovered);
+    row.price.setVisible(discovered);
+    row.qmark.setVisible(!discovered);
+    row.undiscName.setVisible(!discovered);
+    if (row.btn) {
+      if (!discovered) {
+        row.btn.setTint(BTN.gray).disable();
+        row.btn.setText('?').setTextColor(COLORS.dim);
+      }
+    }
+    if (row.upgradeBtn) {
+      row.upgradeBtn.bg.setVisible(discovered);
+      row.upgradeBtn.txt.setVisible(discovered);
+    }
+  }
+
+  refreshDiscovery() {
+    this.rows.forEach((row, i) => {
+      const shouldDiscover = i < this.visibleCount;
+      if (shouldDiscover && !row.discovered) {
+        this._applyDiscovery(row, true);
+      }
+    });
   }
 
   onRowClick(weaponId) {
+    const row = this.rows.find(r => r.weapon.id === weaponId);
+    if (!row?.discovered) return;
     const owned = this.ownedWeapons.includes(weaponId);
     if (!owned) {
       this.socket.socket.emit('purchaseWeapon', { weaponId });
@@ -178,6 +230,8 @@ export class ShopUI {
     this.isOpen = true;
     this.elements.forEach((e) => e.setVisible(true));
     this.rows.forEach((row) => row.parts.forEach((e) => e.setVisible(true)));
+    // Re-apply discovery so undiscovered parts stay hidden
+    this.rows.forEach((row, i) => this._applyDiscovery(row, i < this.visibleCount));
     this.refreshItemStates();
   }
 
@@ -193,6 +247,7 @@ export class ShopUI {
 
   refreshItemStates() {
     for (const row of this.rows) {
+      if (!row.discovered) continue;
       const id = row.weapon.id;
       const owned = this.ownedWeapons.includes(id);
       const active = this.activeWeapon === id;

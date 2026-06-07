@@ -66,8 +66,8 @@ export class BarricadeSystem {
 
   _exitPlacementMode() {
     this.placementMode = false;
-    this.preview.setVisible(false);
-    this.hud.setColor('#aaaaaa');
+    this.preview?.setVisible(false);
+    if (this.hud?.active) this.hud.setColor('#aaaaaa');
   }
 
   _place(x, y) {
