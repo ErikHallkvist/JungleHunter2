@@ -6,8 +6,6 @@ const ROOM_MIN_X = 32;
 const ROOM_MAX_X = 1248;
 const ROOM_MIN_Y = 32;
 const ROOM_MAX_Y = 688;
-const COMBO_WINDOW_MS = 3000;
-
 export class CombatManager {
   constructor(io, enemyManager, getPlayers, shopManager) {
     this.io = io;
@@ -16,39 +14,8 @@ export class CombatManager {
     this.shopManager = shopManager;
     this.activeBullets = new Map();
     this.grenadeCooldowns = new Map();
-    // combo tracking: socketId -> { count, lastKillTime, timeoutHandle }
-    this.combos = new Map();
     // per-player stats for end-of-game screen
     this.playerStats = new Map(); // socketId -> { kills: 0, damage: 0 }
-  }
-
-  _recordKill(socketId) {
-    const now = Date.now();
-    let combo = this.combos.get(socketId);
-    if (!combo) combo = { count: 0, lastKillTime: 0, timeoutHandle: null };
-
-    if (now - combo.lastKillTime <= COMBO_WINDOW_MS) {
-      combo.count++;
-    } else {
-      combo.count = 1;
-    }
-    combo.lastKillTime = now;
-
-    if (combo.timeoutHandle) clearTimeout(combo.timeoutHandle);
-    combo.timeoutHandle = setTimeout(() => {
-      this.combos.delete(socketId);
-      this.io.to(socketId).emit('comboUpdate', { combo: 0 });
-    }, COMBO_WINDOW_MS);
-
-    this.combos.set(socketId, combo);
-    this.io.to(socketId).emit('comboUpdate', { combo: combo.count });
-
-    // multiplier: x2 at 2, x3 at 5, x4 at 10+
-    let mult = 1;
-    if (combo.count >= 10) mult = 4;
-    else if (combo.count >= 5) mult = 3;
-    else if (combo.count >= 2) mult = 2;
-    return mult;
   }
 
   _getWeaponDamage(socketId, baseWeapon) {
@@ -142,12 +109,11 @@ export class CombatManager {
 
     if (killed) {
       stats.kills++;
-      const mult = this._recordKill(socketId);
       const killedPos = this.enemyManager.getLastKilledPos();
       let baseGold = killedPos?.goldValue ?? GOLD_PER_KILL;
       // Bounty Hunter: 2× gold from elites
       if (passives.has('bounty_hunter') && killedPos?.isElite) baseGold *= 2;
-      this.shopManager.addGold(socketId, baseGold * mult);
+      this.shopManager.addGold(socketId, baseGold);
 
       // Synergy passive: AoE explosion on kill
       if (passives.has('synergy') && killedPos) {
@@ -242,8 +208,7 @@ export class CombatManager {
     }
 
     if (kills > 0) {
-      const mult = this._recordKill(socketId);
-      this.shopManager.addGold(socketId, GOLD_PER_KILL * kills * mult);
+      this.shopManager.addGold(socketId, GOLD_PER_KILL * kills);
     }
 
     this.io.emit('grenadeExploded', { id: grenadeId, x: cx, y: cy, radius });
@@ -252,10 +217,6 @@ export class CombatManager {
   reset() {
     this.activeBullets.clear();
     this.grenadeCooldowns.clear();
-    for (const c of this.combos.values()) {
-      if (c.timeoutHandle) clearTimeout(c.timeoutHandle);
-    }
-    this.combos.clear();
     this.playerStats.clear();
   }
 }

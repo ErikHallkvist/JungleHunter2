@@ -90,8 +90,8 @@ export class GameScene extends Phaser.Scene {
       left: Phaser.Input.Keyboard.KeyCodes.A,
       right: Phaser.Input.Keyboard.KeyCodes.D,
     });
-    // Inset by 3px so the 36px sprite stays fully inside the room borders
-    this.physics.world.setBounds(ROOM.x + 3, ROOM.y + 3, ROOM.width - 6, ROOM.height - 6);
+    // Top bound at y=200 (mountain horizon line) so players can't walk in the sky
+    this.physics.world.setBounds(ROOM.x + 3, 200, ROOM.width - 6, (ROOM.y + ROOM.height) - 200 - 3);
 
     // Dash (Shift)
     this.shiftKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SHIFT);
@@ -324,17 +324,15 @@ export class GameScene extends Phaser.Scene {
       fontFamily: FONT,
     }).setOrigin(0.5).setDepth(200);
 
-    // Client-side fallback: return to lobby after 5s even if server event is lost
-    this.time.delayedCall(5000, () => {
-      if (this.scene.isActive('GameScene')) {
-        const chatMessages = this.chatUI?.getMessages() ?? [];
-        this.scene.start('LobbyScene', {
-          socket: this.socket,
-          myName: this.myName,
-          chatMessages,
-          gameResult: { waves: this._maxWave, kills: this._kills, name: this.myName },
-        });
-      }
+    // Return to lobby after 3s (server also sends returnToLobby ~4s after gameOver)
+    this.time.delayedCall(3000, () => {
+      const chatMessages = this.chatUI?.getMessages() ?? [];
+      this.scene.start('LobbyScene', {
+        socket: this.socket,
+        myName: this.myName,
+        chatMessages,
+        gameResult: { waves: this._maxWave, kills: this._kills, name: this.myName },
+      });
     });
   }
 

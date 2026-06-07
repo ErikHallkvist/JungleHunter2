@@ -28,8 +28,8 @@ export class ChatUI {
     el.style.cssText = [
       'position:fixed',
       'bottom:10px',
-      'right:10px',
-      'width:340px',
+      'left:10px',
+      'width:300px',
       'display:flex',
       'flex-direction:column',
       'background:rgba(6,10,22,0.88)',
