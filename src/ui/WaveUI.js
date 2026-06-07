@@ -43,7 +43,7 @@ export class WaveUI {
     }).setDepth(100);
 
     this.countdownText = this.scene.add
-      .text(640, 55, '', { fontSize: '22px', color: COLORS.gold, fontFamily: FONT_HEAD })
+      .text(640, 155, '', { fontSize: '22px', color: COLORS.gold, fontFamily: FONT_HEAD })
       .setOrigin(0.5).setAlpha(0).setDepth(100);
 
     this.flashText = this.scene.add

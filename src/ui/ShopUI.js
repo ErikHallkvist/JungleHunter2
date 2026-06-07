@@ -34,13 +34,13 @@ export class ShopUI {
     });
 
     // ── Panel ──────────────────────────────────────────────────────────────
-    const pnl = panel(this.scene, 640, 362, 1180, 600, { depth: 60 });
+    const pnl = panel(this.scene, 640, 362, 1180, 600, { depth: 101 });
 
-    const title = heading(this.scene, 640, 96, 'WEAPON SHOP', { size: 26, color: COLORS.gold }).setDepth(62);
+    const title = heading(this.scene, 640, 96, 'WEAPON SHOP', { size: 26, color: COLORS.gold }).setDepth(103);
 
-    this.goldText = label(this.scene, 640, 134, 'GOLD: 0', { size: 24, color: COLORS.gold }).setDepth(62);
+    this.goldText = label(this.scene, 640, 134, 'GOLD: 0', { size: 24, color: COLORS.gold }).setDepth(103);
 
-    const divider = this.scene.add.rectangle(640, 156, 1140, 2, 0x33406a, 1).setDepth(62);
+    const divider = this.scene.add.rectangle(640, 156, 1140, 2, 0x33406a, 1).setDepth(103);
 
     this.elements.push(pnl, title, this.goldText, divider);
 
@@ -60,11 +60,11 @@ export class ShopUI {
     });
 
     // Feedback + close hint
-    this.feedbackText = label(this.scene, 640, 632, '', { size: 22, color: COLORS.white }).setDepth(62).setAlpha(0);
+    this.feedbackText = label(this.scene, 640, 632, '', { size: 22, color: COLORS.white }).setDepth(103).setAlpha(0);
 
     const closeHint = label(this.scene, 640, 656, 'Press B or Esc to close   -   wheel / number keys switch weapon', {
       size: 18, color: COLORS.dim,
-    }).setDepth(62);
+    }).setDepth(103);
 
     this.elements.push(this.feedbackText, closeHint);
 
@@ -126,24 +126,24 @@ export class ShopUI {
 
   buildRow(w, x0, y) {
     const icon = this.scene.add.image(x0 + 30, y, w.icon)
-      .setDisplaySize(56, 25).setDepth(62);
+      .setDisplaySize(56, 25).setDepth(103);
 
     const name = label(this.scene, x0 + 64, y - 9, w.name, {
       size: 21, color: COLORS.white, origin: [0, 0.5],
-    }).setDepth(62);
+    }).setDepth(103);
 
     const stats = label(
       this.scene, x0 + 64, y + 11,
       `DMG ${w.damage}  ${w.fireRate}ms${w.pellets > 1 ? `  x${w.pellets}` : ''}`,
       { size: 16, color: COLORS.dim, origin: [0, 0.5] }
-    ).setDepth(62);
+    ).setDepth(103);
 
     const price = label(this.scene, x0 + 360, y, `${w.price}g`, {
       size: 21, color: COLORS.gold, origin: [1, 0.5],
-    }).setDepth(62);
+    }).setDepth(103);
 
     const btn = button(this.scene, x0 + 435, y, 86, 32, 'BUY', {
-      tint: BTN.green, fontSize: 11, depth: 62,
+      tint: BTN.green, fontSize: 11, depth: 103,
       onClick: () => this.onRowClick(w.id),
     });
 
@@ -152,7 +152,7 @@ export class ShopUI {
     if (w.id !== 'pistol') {
       const upgradeCost = Math.floor(w.price * 0.6);
       upgradeBtn = button(this.scene, x0 + 536, y, 80, 32, `★ ${upgradeCost}g`, {
-        tint: BTN.gray, fontSize: 10, depth: 62,
+        tint: BTN.gray, fontSize: 10, depth: 103,
         onClick: () => this.socket.socket.emit('upgradeWeapon', { weaponId: w.id }),
       });
     }
