@@ -19,13 +19,13 @@ export class BarricadeSystem {
   init() {
     this.placementMode = false;
 
-    this.hud = this.scene.add.text(20, 675, '[B] Barricade (80g)', {
+    this.hud = this.scene.add.text(20, 675, '[V] Barricade (80g)', {
       fontSize: '13px', color: '#aaaaaa', fontFamily: 'monospace',
       backgroundColor: '#00000066', padding: { x: 6, y: 3 },
     }).setDepth(100).setInteractive({ useHandCursor: true });
     this.hud.on('pointerdown', () => this._enterPlacementMode());
 
-    this.bKey = this.scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.B);
+    this.bKey = this.scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.V);
     this.bKey.on('down', () => this._enterPlacementMode());
 
     this.preview = this.scene.add.rectangle(0, 0, BARRICADE_W, BARRICADE_H, 0x00ff88, 0.5)
@@ -61,7 +61,7 @@ export class BarricadeSystem {
     if (this.placementMode) { this._exitPlacementMode(); return; }
     this.placementMode = true;
     this.hud.setColor('#00ff88');
-    this._showMsg('Click to place barricade  (B to cancel)', '#00ff88');
+    this._showMsg('Click to place barricade  (V to cancel)', '#00ff88');
   }
 
   _exitPlacementMode() {

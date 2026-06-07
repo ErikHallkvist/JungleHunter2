@@ -33,7 +33,7 @@ export class WaveUI {
     }).setDepth(100);
 
     this.countdownText = this.scene.add
-      .text(640, 360, '', { fontSize: '30px', color: COLORS.gold, fontFamily: FONT_HEAD })
+      .text(640, 55, '', { fontSize: '22px', color: COLORS.gold, fontFamily: FONT_HEAD })
       .setOrigin(0.5).setAlpha(0).setDepth(100);
 
     this.flashText = this.scene.add
@@ -89,20 +89,20 @@ export class WaveUI {
   }
 
   _buildPreviewPanel() {
-    const px = 640, py = 300;
-    this._previewBg = this.scene.add.rectangle(px, py, 400, 130, 0x0a0e1a, 0.92)
+    const px = 640, py = 90;
+    this._previewBg = this.scene.add.rectangle(px, py, 400, 110, 0x0a0e1a, 0.92)
       .setStrokeStyle(2, 0x334488).setDepth(95).setAlpha(0);
-    this._previewTitle = this.scene.add.text(px, py - 46, '', {
-      fontSize: '14px', color: COLORS.gold, fontFamily: FONT_HEAD,
+    this._previewTitle = this.scene.add.text(px, py - 38, '', {
+      fontSize: '13px', color: COLORS.gold, fontFamily: FONT_HEAD,
     }).setOrigin(0.5).setDepth(96).setAlpha(0);
-    this._previewLine1 = this.scene.add.text(px, py - 14, '', {
-      fontSize: '20px', color: COLORS.white, fontFamily: FONT,
+    this._previewLine1 = this.scene.add.text(px, py - 12, '', {
+      fontSize: '16px', color: COLORS.white, fontFamily: FONT,
     }).setOrigin(0.5).setDepth(96).setAlpha(0);
-    this._previewLine2 = this.scene.add.text(px, py + 14, '', {
-      fontSize: '18px', color: COLORS.gold, fontFamily: FONT,
+    this._previewLine2 = this.scene.add.text(px, py + 10, '', {
+      fontSize: '15px', color: COLORS.gold, fontFamily: FONT,
     }).setOrigin(0.5).setDepth(96).setAlpha(0);
-    this._previewLine3 = this.scene.add.text(px, py + 42, '', {
-      fontSize: '18px', color: COLORS.dim, fontFamily: FONT,
+    this._previewLine3 = this.scene.add.text(px, py + 32, '', {
+      fontSize: '15px', color: COLORS.dim, fontFamily: FONT,
     }).setOrigin(0.5).setDepth(96).setAlpha(0);
   }
 

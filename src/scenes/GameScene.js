@@ -98,6 +98,13 @@ export class GameScene extends Phaser.Scene {
     // Grenade throw (Q)
     this.qKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.Q);
 
+    // Escape closes all open shop/ability windows
+    this.escKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ESC);
+    this.escKey.on('down', () => {
+      if (this.shopUI?.isOpen) this.shopUI.hide();
+      if (this.passiveShopUI?.isOpen) this.passiveShopUI.hide();
+    });
+
     this.enemySystem = new EnemySystem(this);
     this.enemySystem.init(this.socket);
 

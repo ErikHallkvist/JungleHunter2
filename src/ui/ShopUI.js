@@ -28,7 +28,7 @@ export class ShopUI {
     this.rows = [];
 
     // Shop toggle button (always visible, bottom-right)
-    this.shopBtn = button(this.scene, 1206, 686, 124, 40, '[E] SHOP', {
+    this.shopBtn = button(this.scene, 1206, 686, 124, 40, '[B] SHOP', {
       tint: BTN.gold, fontSize: 12, color: '#10182e', depth: 120,
       onClick: () => this.toggle(),
     });
@@ -62,7 +62,7 @@ export class ShopUI {
     // Feedback + close hint
     this.feedbackText = label(this.scene, 640, 632, '', { size: 22, color: COLORS.white }).setDepth(62).setAlpha(0);
 
-    const closeHint = label(this.scene, 640, 656, 'Press E to close   -   wheel / number keys switch weapon', {
+    const closeHint = label(this.scene, 640, 656, 'Press B or Esc to close   -   wheel / number keys switch weapon', {
       size: 18, color: COLORS.dim,
     }).setDepth(62);
 
@@ -73,7 +73,7 @@ export class ShopUI {
     this.rows.forEach((row) => row.parts.forEach((e) => e.setVisible(false)));
 
     // Keyboard toggle
-    this.eKey = this.scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.E);
+    this.eKey = this.scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.B);
     this.eKey.on('down', () => this.toggle());
 
     // ── Socket listeners ─────────────────────────────────────────────────────

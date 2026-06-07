@@ -80,14 +80,15 @@ export class LobbyScene extends Phaser.Scene {
     this.add.rectangle(ctrlX, ctrlY - ctrlH / 2 + 52, ctrlW - 50, 2, 0x33406a);
 
     const controls = [
-      ['WASD', 'Rörelse'],
+      ['WASD', 'Move'],
       ['SHIFT', 'Dash'],
-      ['Q', 'Kasta granat'],
-      ['LMB / SPACE', 'Skjut'],
-      ['Scroll / 1-9', 'Byt vapen'],
-      ['E', 'Vapenshop'],
-      ['P', 'Förmågor'],
-      ['B', 'Placera barrikad'],
+      ['Q', 'Throw grenade'],
+      ['LMB / SPACE', 'Shoot'],
+      ['Scroll / 1-9', 'Switch weapon'],
+      ['B', 'Weapon shop'],
+      ['P', 'Passives'],
+      ['V', 'Place barricade'],
+      ['ESC', 'Close shop'],
     ];
     controls.forEach(([key, desc], i) => {
       const y = ctrlY - ctrlH / 2 + 76 + i * 36;
@@ -124,10 +125,10 @@ export class LobbyScene extends Phaser.Scene {
 
     const scores = loadHighscores();
     if (scores.length === 0) {
-      label(this, hsX, hsY - hsH / 2 + 90, 'Inga poäng ännu', { size: 16, color: COLORS.dim });
+      label(this, hsX, hsY - hsH / 2 + 90, 'No scores yet', { size: 16, color: COLORS.dim });
     } else {
       // Header
-      label(this, hsX - 90, hsY - hsH / 2 + 70, 'Spelare', { size: 14, color: COLORS.dim, origin: [0, 0.5] });
+      label(this, hsX - 90, hsY - hsH / 2 + 70, 'Player', { size: 14, color: COLORS.dim, origin: [0, 0.5] });
       label(this, hsX + 50, hsY - hsH / 2 + 70, 'Wave', { size: 14, color: COLORS.dim, origin: [0.5, 0.5] });
       label(this, hsX + 100, hsY - hsH / 2 + 70, 'Kills', { size: 14, color: COLORS.dim, origin: [0.5, 0.5] });
       scores.forEach((s, i) => {
