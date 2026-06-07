@@ -19,15 +19,17 @@ export class BulletSystem {
   }
 
   spawnMuzzleFlash(x, y, angle) {
-    const gfx = this.scene.add.graphics().setDepth(20);
+    // Draw relative to the graphics object's own origin so scale tween
+    // expands from the correct centre point instead of drifting to (0,0).
+    const gfx = this.scene.add.graphics({ x, y }).setDepth(20);
 
     // Outer flare
     gfx.fillStyle(0xff9900, 0.7);
-    gfx.fillCircle(x, y, 10);
+    gfx.fillCircle(0, 0, 10);
 
     // Bright core
     gfx.fillStyle(0xffffaa, 1.0);
-    gfx.fillCircle(x, y, 6);
+    gfx.fillCircle(0, 0, 6);
 
     // Elongated streak in firing direction
     gfx.fillStyle(0xffffcc, 0.85);
@@ -36,10 +38,10 @@ export class BulletSystem {
     const streakLen = 16;
     const streakW = 4;
     const pts = [
-      { x: x + cos * streakLen - sin * streakW, y: y + sin * streakLen + cos * streakW },
-      { x: x + cos * streakLen + sin * streakW, y: y + sin * streakLen - cos * streakW },
-      { x: x - sin * streakW,                   y: y + cos * streakW },
-      { x: x + sin * streakW,                   y: y - cos * streakW },
+      { x:  cos * streakLen - sin * streakW, y:  sin * streakLen + cos * streakW },
+      { x:  cos * streakLen + sin * streakW, y:  sin * streakLen - cos * streakW },
+      { x: -sin * streakW,                   y:  cos * streakW },
+      { x:  sin * streakW,                   y: -cos * streakW },
     ];
     gfx.fillPoints(pts, true);
 
