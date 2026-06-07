@@ -38,6 +38,9 @@ let gameInProgress = false;
 let defeatTriggered = false;
 const MAX_LEAKS = 10;
 
+const chatHistory = [];
+const MAX_CHAT_HISTORY = 60;
+
 let enemyManager = null;
 let waveManager = null;
 let combatManager = null;
@@ -118,11 +121,25 @@ io.on('connection', (socket) => {
   console.log(`${name} ansluten (${socket.id})`);
 
   socket.emit('assignedName', name);
+  socket.emit('chatHistory', chatHistory);
   broadcastLobbyUpdate();
 
   // A client returning to the lobby asks for the current state.
   socket.on('requestLobby', () => {
     socket.emit('lobbyUpdate', { players: Object.values(lobby), gameInProgress });
+    socket.emit('chatHistory', chatHistory);
+  });
+
+  // Chat — broadcast to everyone, stored in history.
+  socket.on('chatMessage', (msg) => {
+    if (typeof msg !== 'string') return;
+    const text = msg.trim().slice(0, 200);
+    if (!text) return;
+    const senderName = lobby[socket.id]?.name || gamePlayers[socket.id]?.name || '?';
+    const entry = { name: senderName, text, time: Date.now() };
+    chatHistory.push(entry);
+    if (chatHistory.length > MAX_CHAT_HISTORY) chatHistory.shift();
+    io.emit('chatReceived', entry);
   });
 
   socket.on('startGame', () => {

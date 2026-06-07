@@ -104,25 +104,25 @@ export const WEAPONS = [
   // ── Elite ────────────────────────────────────────────────────────────────────
   {
     id: 'sniper', name: 'Sniper Rifle', price: 1350, tier: 'Rifle',
-    damage: 140, fireRate: 850, speed: 1400, pellets: 1, spreadDeg: 0,
+    damage: 155, fireRate: 850, speed: 1400, pellets: 1, spreadDeg: 0,
     bulletType: 'rail', icon: 'w_sniper',
     desc: 'Crushes almost anything in one shot.',
   },
   {
     id: 'auto_shotgun', name: 'Auto Shotgun', price: 1600, tier: 'Shotgun',
-    damage: 14, fireRate: 320, speed: 800, pellets: 8, spreadDeg: 48,
+    damage: 14, fireRate: 480, speed: 800, pellets: 8, spreadDeg: 48,
     bulletType: 'pellet', icon: 'w_auto_shotgun',
     desc: 'Full-auto shotgun. Devastating.',
   },
   {
     id: 'plasma_rifle', name: 'Plasma Rifle', price: 1900, tier: 'Energy',
-    damage: 40, fireRate: 130, speed: 760, pellets: 1, spreadDeg: 0,
+    damage: 44, fireRate: 130, speed: 760, pellets: 1, spreadDeg: 0,
     bulletType: 'plasma', icon: 'w_plasma_rifle',
     desc: 'Fires glowing plasma orbs.',
   },
   {
     id: 'pulse_rifle', name: 'Pulse Rifle', price: 2300, tier: 'Energy',
-    damage: 34, fireRate: 90, speed: 880, pellets: 1, spreadDeg: 0,
+    damage: 36, fireRate: 85, speed: 880, pellets: 1, spreadDeg: 0,
     bulletType: 'plasma', icon: 'w_pulse_rifle',
     desc: 'Rapid-pulse energy rifle.',
   },
@@ -130,25 +130,25 @@ export const WEAPONS = [
   // ── Legendary ────────────────────────────────────────────────────────────────
   {
     id: 'railgun', name: 'Railgun', price: 2800, tier: 'Energy',
-    damage: 220, fireRate: 900, speed: 1800, pellets: 1, spreadDeg: 0,
+    damage: 260, fireRate: 900, speed: 1800, pellets: 1, spreadDeg: 0,
     bulletType: 'rail', icon: 'w_railgun',
     desc: 'Hyper-accelerated slug. Pierces everything.',
   },
   {
     id: 'flak_cannon', name: 'Flak Cannon', price: 3400, tier: 'Shotgun',
-    damage: 24, fireRate: 480, speed: 820, pellets: 10, spreadDeg: 55,
+    damage: 26, fireRate: 540, speed: 820, pellets: 10, spreadDeg: 55,
     bulletType: 'pellet', icon: 'w_flak_cannon',
     desc: '10 shards in a wall of metal.',
   },
   {
     id: 'laser_minigun', name: 'Laser Minigun', price: 4200, tier: 'Energy',
-    damage: 24, fireRate: 50, speed: 1200, pellets: 1, spreadDeg: 3,
+    damage: 26, fireRate: 50, speed: 1200, pellets: 1, spreadDeg: 3,
     bulletType: 'laser', icon: 'w_laser_minigun',
     desc: 'Rotating laser. Endless death beam.',
   },
   {
     id: 'devastator', name: 'Devastator', price: 6000, tier: 'Legendary',
-    damage: 160, fireRate: 350, speed: 900, pellets: 3, spreadDeg: 18,
+    damage: 85, fireRate: 280, speed: 900, pellets: 3, spreadDeg: 18,
     bulletType: 'energy', icon: 'w_devastator',
     desc: 'The ultimate weapon. 3 annihilation orbs.',
   },

@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { SocketManager } from '../network/SocketManager.js';
 import { COLORS, BTN, preloadTheme, panel, heading, label, button } from '../ui/theme.js';
+import { ChatUI } from '../ui/ChatUI.js';
 
 const W = 1280;
 const H = 720;
@@ -27,6 +28,7 @@ export class LobbyScene extends Phaser.Scene {
     this.reusedSocket = data?.socket || null;
     this.reusedName = data?.myName || '';
     this.gameResult = data?.gameResult || null;
+    this.chatMessages = data?.chatMessages || [];
   }
 
   preload() {
@@ -54,6 +56,8 @@ export class LobbyScene extends Phaser.Scene {
 
     this.lobbyMusic = this.sound.add('music_lobby', { loop: true, volume: 0.3 });
     this.lobbyMusic.play();
+
+    this.chatUI = new ChatUI(this.socket, this.myName, this.chatMessages);
 
     this.buildUI();
 
@@ -164,12 +168,23 @@ export class LobbyScene extends Phaser.Scene {
     this.socket.onGameStarted((playerList) => {
       this.socket.offLobby();
       this.lobbyMusic?.stop();
-      this.scene.start('GameScene', { socket: this.socket, myName: this.myName, playerList });
+      const chatMessages = this.chatUI?.getMessages() ?? [];
+      this.chatUI?.destroy();
+      this.chatUI = null;
+      this.scene.start('GameScene', { socket: this.socket, myName: this.myName, playerList, chatMessages });
     });
 
     // When reusing an existing connection (returning from a game), the initial
     // lobbyUpdate already fired before this scene existed — ask for it again.
     if (this.reusedSocket) this.socket.requestLobby();
+
+    this.events.once('shutdown', () => {
+      // Only destroy chatUI if it hasn't already been handed off to GameScene.
+      if (this.chatUI) {
+        this.chatUI.destroy();
+        this.chatUI = null;
+      }
+    });
   }
 
   refreshPlayerList() {

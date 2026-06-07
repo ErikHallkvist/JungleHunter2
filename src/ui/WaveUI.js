@@ -53,7 +53,7 @@ export class WaveUI {
     // Pre-created preview panel (hidden by default)
     this._buildPreviewPanel();
 
-    socket.socket.on('waveStart', ({ waveNumber, enemyCount, enemyName, isBoss, waveEvent }) => {
+    socket.socket.on('waveStart', ({ waveNumber, enemyCount, enemyName, isBoss, waveEvent, playerCount }) => {
       this.aliveEnemies = 0;
       this.waveText.setText(`WAVE ${waveNumber}${enemyName ? ` - ${enemyName}` : ''}`);
       this.enemyCountText.setText(`Enemies: ${enemyCount}`);
@@ -65,6 +65,14 @@ export class WaveUI {
       } else {
         this.flashText.setText(`WAVE ${waveNumber}!`).setAlpha(1);
         this.scene.tweens.add({ targets: this.flashText, alpha: 0, duration: 2000, delay: 500 });
+      }
+
+      // Show co-op scaling banner once on the first wave when multiple players.
+      if (waveNumber === 1 && playerCount > 1) {
+        const scale = Math.round((1 + 0.5 * (playerCount - 1)) * 100);
+        this.scene.time.delayedCall(isBoss ? 3200 : 2800, () => {
+          this._showBanner(`CO-OP  ${playerCount}P  x${scale}% ENEMIES`, '#9ad0ff', 3000);
+        });
       }
 
       if (waveEvent) this._showEventBanner(waveEvent);

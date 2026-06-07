@@ -62,20 +62,30 @@ export class WaveManager {
     return ENEMY_TYPES.slice(startIdx, maxUnlocked);
   }
 
+  _playerCount() {
+    return Math.max(1, Object.keys(this.getPlayers()).length);
+  }
+
+  // Returns a multiplier based on player count: +50% enemies per extra player.
+  _playerScale(playerCount) {
+    return 1 + 0.5 * (playerCount - 1);
+  }
+
   _getNextWaveInfo(waveNum) {
+    const playerCount = this._playerCount();
     const typeIndex = (waveNum - 1) % ENEMY_TYPES.length;
     const type = ENEMY_TYPES[typeIndex];
     const loop = Math.floor((waveNum - 1) / ENEMY_TYPES.length);
-    const enemyCount = 5 + (waveNum - 1) * 2 + loop * 3;
+    const baseCount = 5 + (waveNum - 1) * 2 + loop * 3;
+    const enemyCount = Math.round(baseCount * this._playerScale(playerCount));
     const isBoss = waveNum % BOSS_INTERVAL === 0;
-    // estimate gold: 10g per kill × count
     const estimatedGold = enemyCount * 10;
-    return { type, enemyCount, isBoss, estimatedGold };
+    return { type, enemyCount, isBoss, estimatedGold, playerCount };
   }
 
   startNextWave() {
     const nextNum = this.currentWave + 1;
-    const { type, enemyCount, isBoss, estimatedGold } = this._getNextWaveInfo(nextNum);
+    const { type, enemyCount, isBoss, estimatedGold, playerCount } = this._getNextWaveInfo(nextNum);
     this.currentWave = nextNum;
 
     // Respawn any downed players at wave start
@@ -109,6 +119,7 @@ export class WaveManager {
       enemyName: type.name,
       isBoss,
       waveEvent,
+      playerCount,
     });
 
     this.waveActive = true;
@@ -117,11 +128,14 @@ export class WaveManager {
 
     const pool = isBoss ? [type] : this._getEnemyPool(nextNum);
 
+    // Boss HP scales with player count: +30% per extra player.
+    const bossHpScale = isBoss ? 5 * (1 + 0.3 * (playerCount - 1)) : 1;
+
     let spawned = 0;
     const spawnInterval = setInterval(() => {
       if (!this.gameRunning) { clearInterval(spawnInterval); return; }
       const pick = pool[Math.floor(Math.random() * pool.length)];
-      const baseHp = isBoss ? pick.hp * 5 : pick.hp;
+      const baseHp = isBoss ? Math.round(pick.hp * bossHpScale) : pick.hp;
       this.enemyManager.spawnEnemy(pick.id, Math.max(1, Math.floor(baseHp * hpMult)));
       spawned++;
       if (spawned >= actualEnemyCount) {
