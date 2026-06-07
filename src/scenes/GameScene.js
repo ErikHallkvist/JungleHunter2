@@ -4,8 +4,10 @@ import { ENEMY_TYPES } from '../../shared/enemies.js';
 import { EnemySystem } from '../systems/EnemySystem.js';
 import { WeaponSystem } from '../systems/WeaponSystem.js';
 import { BulletSystem } from '../systems/BulletSystem.js';
+import { BarricadeSystem } from '../systems/BarricadeSystem.js';
 import { WaveUI } from '../ui/WaveUI.js';
 import { ShopUI } from '../ui/ShopUI.js';
+import { PassiveShopUI } from '../ui/PassiveShopUI.js';
 import { GoldUI } from '../ui/GoldUI.js';
 import { FONT, FONT_HEAD, COLORS, preloadTheme } from '../ui/theme.js';
 
@@ -13,6 +15,7 @@ const ROOM = { x: 32, y: 32, width: 1216, height: 656 };
 export const PLAYER_W = 36;
 export const PLAYER_H = 48;
 const SPEED = 220;
+const SPEED_BOOTS = 275; // +25%
 
 export class GameScene extends Phaser.Scene {
   constructor() {
@@ -70,6 +73,9 @@ export class GameScene extends Phaser.Scene {
     this.players = {};
     this.localSprite = null;
     this.localId = null;
+    this.passives = new Set();
+    this._kills = 0;
+    this._maxWave = 0;
 
     this.createRoom();
 
@@ -115,8 +121,19 @@ export class GameScene extends Phaser.Scene {
     this.shopUI = new ShopUI(this, this.socket);
     this.shopUI.init();
 
+    this.passiveShopUI = new PassiveShopUI(this, this.socket);
+    this.passiveShopUI.init();
+
+    this.barricadeSystem = new BarricadeSystem(this, this.socket);
+    this.barricadeSystem.init();
+
     this.goldUI = new GoldUI(this);
     this.goldUI.init(this.socket, this.socket.id);
+
+    // Track passives for speed/cooldown effects
+    this.socket.socket.on('passiveResult', ({ success, passives }) => {
+      if (success && passives) passives.forEach(id => this.passives.add(id));
+    });
 
     this.gameEnded = false;
 
@@ -154,7 +171,17 @@ export class GameScene extends Phaser.Scene {
       enemyLeaked: () => this.playSfx('sfx_leak', 0.5),
       gameOver: () => this.showGameOver(),
       returnToLobby: () => {
-        this.scene.start('LobbyScene', { socket: this.socket, myName: this.myName });
+        this.scene.start('LobbyScene', {
+          socket: this.socket,
+          myName: this.myName,
+          gameResult: { waves: this._maxWave, kills: this._kills, name: this.myName },
+        });
+      },
+      waveStart: ({ waveNumber }) => {
+        if (waveNumber > this._maxWave) this._maxWave = waveNumber;
+      },
+      enemyDied: ({ killedBy }) => {
+        if (killedBy === this.localId) this._kills++;
       },
     };
 
@@ -167,6 +194,8 @@ export class GameScene extends Phaser.Scene {
     s.on('enemyLeaked', this._handlers.enemyLeaked);
     s.on('gameOver', this._handlers.gameOver);
     s.on('returnToLobby', this._handlers.returnToLobby);
+    s.on('waveStart', this._handlers.waveStart);
+    s.on('enemyDied', this._handlers.enemyDied);
 
     // Tear everything down cleanly when the scene stops (return to lobby).
     this.events.once('shutdown', () => this.cleanup());
@@ -205,13 +234,18 @@ export class GameScene extends Phaser.Scene {
       s.off('enemyLeaked', this._handlers.enemyLeaked);
       s.off('gameOver', this._handlers.gameOver);
       s.off('returnToLobby', this._handlers.returnToLobby);
+      s.off('waveStart', this._handlers.waveStart);
+      s.off('enemyDied', this._handlers.enemyDied);
+      s.off('passiveResult');
     }
     this.gameMusic?.stop();
     this.enemySystem?.destroy();
     this.bulletSystem?.destroy();
     this.weaponSystem?.destroy();
+    this.barricadeSystem?.destroy();
     this.waveUI?.destroy();
     this.shopUI?.destroy();
+    this.passiveShopUI?.destroy();
     this.goldUI?.destroy();
   }
 
@@ -338,14 +372,15 @@ export class GameScene extends Phaser.Scene {
 
     body.setVelocity(0);
 
+    const currentSpeed = this.passives.has('boots') ? SPEED_BOOTS : SPEED;
     if (now < this.dashActiveUntil) {
       body.setVelocity(this.dashVx, this.dashVy);
     } else {
-      if (this.wasd.left.isDown) body.setVelocityX(-SPEED);
-      else if (this.wasd.right.isDown) body.setVelocityX(SPEED);
+      if (this.wasd.left.isDown) body.setVelocityX(-currentSpeed);
+      else if (this.wasd.right.isDown) body.setVelocityX(currentSpeed);
 
-      if (this.wasd.up.isDown) body.setVelocityY(-SPEED);
-      else if (this.wasd.down.isDown) body.setVelocityY(SPEED);
+      if (this.wasd.up.isDown) body.setVelocityY(-currentSpeed);
+      else if (this.wasd.down.isDown) body.setVelocityY(currentSpeed);
     }
 
     const local = this.players[this.localId];
@@ -370,5 +405,6 @@ export class GameScene extends Phaser.Scene {
     this.enemySystem.update();
     this.bulletSystem.update(delta);
     this.weaponSystem.update();
+    this.barricadeSystem?.update?.();
   }
 }

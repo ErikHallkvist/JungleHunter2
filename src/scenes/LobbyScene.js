@@ -5,6 +5,18 @@ import { COLORS, BTN, preloadTheme, panel, heading, label, button } from '../ui/
 const W = 1280;
 const H = 720;
 
+function loadHighscores() {
+  try { return JSON.parse(localStorage.getItem('jh2_scores') || '[]'); } catch { return []; }
+}
+
+function saveHighscore(entry) {
+  const scores = loadHighscores();
+  scores.push(entry);
+  scores.sort((a, b) => b.waves - a.waves || b.kills - a.kills);
+  scores.splice(5); // top 5
+  localStorage.setItem('jh2_scores', JSON.stringify(scores));
+}
+
 export class LobbyScene extends Phaser.Scene {
   constructor() {
     super({ key: 'LobbyScene' });
@@ -12,9 +24,9 @@ export class LobbyScene extends Phaser.Scene {
   }
 
   init(data) {
-    // When returning from a finished game we reuse the existing connection.
     this.reusedSocket = data?.socket || null;
     this.reusedName = data?.myName || '';
+    this.gameResult = data?.gameResult || null;
   }
 
   preload() {
@@ -30,12 +42,21 @@ export class LobbyScene extends Phaser.Scene {
     this.players = [];
     this.gameInProgress = false;
 
+    // Save score from last game
+    if (this.gameResult && (this.gameResult.waves > 0 || this.gameResult.kills > 0)) {
+      saveHighscore({
+        name: this.gameResult.name,
+        waves: this.gameResult.waves,
+        kills: this.gameResult.kills,
+        date: new Date().toLocaleDateString('sv-SE'),
+      });
+    }
+
     this.lobbyMusic = this.sound.add('music_lobby', { loop: true, volume: 0.3 });
     this.lobbyMusic.play();
 
     this.buildUI();
 
-    // Show our name straight away when reusing (assignedName won't fire again).
     if (this.myName) {
       this.nameText.setText(`Playing as: ${this.myName}`);
       this.nameText.setColor(COLORS.gold);
@@ -45,37 +66,79 @@ export class LobbyScene extends Phaser.Scene {
   }
 
   buildUI() {
-    // Tiled jungle background + dark scrim for readability.
     this.add.tileSprite(W / 2, H / 2, W, H, 'jungle');
     this.add.rectangle(W / 2, H / 2, W, H, 0x0a0e1a, 0.55);
 
-    // Title with a little hunter sprite either side.
-    heading(this, W / 2, 84, 'JUNGLE HUNTER 2', { size: 40, color: COLORS.gold });
-    this.add.image(W / 2 - 320, 84, 'player').setScale(1.1);
-    this.add.image(W / 2 + 320, 84, 'player').setScale(1.1).setFlipX(true);
+    heading(this, W / 2, 68, 'JUNGLE HUNTER 2', { size: 36, color: COLORS.gold });
+    this.add.image(W / 2 - 310, 68, 'player').setScale(1.0);
+    this.add.image(W / 2 + 310, 68, 'player').setScale(1.0).setFlipX(true);
 
-    const panelX = W / 2;
-    const panelY = H / 2 + 30;
-    const panelW = 520;
-    const panelH = 410;
-    panel(this, panelX, panelY, panelW, panelH);
+    // ── Controls panel (left) ────────────────────────────────────────────────
+    const ctrlX = 190, ctrlY = H / 2 + 30, ctrlW = 300, ctrlH = 410;
+    panel(this, ctrlX, ctrlY, ctrlW, ctrlH);
+    heading(this, ctrlX, ctrlY - ctrlH / 2 + 30, 'KONTROLLER', { size: 14, color: COLORS.dim });
+    this.add.rectangle(ctrlX, ctrlY - ctrlH / 2 + 52, ctrlW - 50, 2, 0x33406a);
 
-    heading(this, panelX, panelY - panelH / 2 + 34, 'LOBBY', { size: 18, color: COLORS.dim });
-    this.add.rectangle(panelX, panelY - panelH / 2 + 58, panelW - 60, 2, 0x33406a);
-
-    this.nameText = label(this, panelX, panelY - panelH / 2 + 88, 'Connecting...', {
-      size: 22, color: COLORS.dim,
+    const controls = [
+      ['WASD', 'Rörelse'],
+      ['SHIFT', 'Dash'],
+      ['Q', 'Kasta granat'],
+      ['LMB / SPACE', 'Skjut'],
+      ['Scroll / 1-9', 'Byt vapen'],
+      ['E', 'Vapenshop'],
+      ['P', 'Förmågor'],
+      ['B', 'Placera barrikad'],
+    ];
+    controls.forEach(([key, desc], i) => {
+      const y = ctrlY - ctrlH / 2 + 76 + i * 36;
+      label(this, ctrlX - 80, y, key, { size: 17, color: COLORS.gold, origin: [0, 0.5] });
+      label(this, ctrlX + 20, y, desc, { size: 17, color: COLORS.dim, origin: [0, 0.5] });
     });
 
-    this.listStartY = panelY - panelH / 2 + 124;
+    // ── Lobby/player panel (center) ──────────────────────────────────────────
+    const panelX = W / 2, panelY = H / 2 + 30, panelW = 480, panelH = 410;
+    panel(this, panelX, panelY, panelW, panelH);
+
+    heading(this, panelX, panelY - panelH / 2 + 30, 'LOBBY', { size: 16, color: COLORS.dim });
+    this.add.rectangle(panelX, panelY - panelH / 2 + 52, panelW - 60, 2, 0x33406a);
+
+    this.nameText = label(this, panelX, panelY - panelH / 2 + 80, 'Connecting...', {
+      size: 20, color: COLORS.dim,
+    });
+
+    this.listStartY = panelY - panelH / 2 + 114;
     this.listX = panelX;
     this.panelW = panelW;
 
-    const btnY = panelY + panelH / 2 - 48;
-    this.startBtn = button(this, panelX, btnY, 320, 56, 'START GAME', {
-      tint: BTN.green, fontSize: 18,
+    const btnY = panelY + panelH / 2 - 44;
+    this.startBtn = button(this, panelX, btnY, 300, 52, 'START GAME', {
+      tint: BTN.green, fontSize: 16,
       onClick: () => { if (!this.gameInProgress) this.socket.emitStartGame(); },
     });
+
+    // ── Highscore panel (right) ──────────────────────────────────────────────
+    const hsX = W - 190, hsY = H / 2 + 30, hsW = 300, hsH = 410;
+    panel(this, hsX, hsY, hsW, hsH);
+    heading(this, hsX, hsY - hsH / 2 + 30, 'HIGHSCORE', { size: 14, color: COLORS.gold });
+    this.add.rectangle(hsX, hsY - hsH / 2 + 52, hsW - 50, 2, 0x33406a);
+
+    const scores = loadHighscores();
+    if (scores.length === 0) {
+      label(this, hsX, hsY - hsH / 2 + 90, 'Inga poäng ännu', { size: 16, color: COLORS.dim });
+    } else {
+      // Header
+      label(this, hsX - 90, hsY - hsH / 2 + 70, 'Spelare', { size: 14, color: COLORS.dim, origin: [0, 0.5] });
+      label(this, hsX + 50, hsY - hsH / 2 + 70, 'Wave', { size: 14, color: COLORS.dim, origin: [0.5, 0.5] });
+      label(this, hsX + 100, hsY - hsH / 2 + 70, 'Kills', { size: 14, color: COLORS.dim, origin: [0.5, 0.5] });
+      scores.forEach((s, i) => {
+        const y = hsY - hsH / 2 + 96 + i * 52;
+        const rowColor = i === 0 ? COLORS.gold : COLORS.white;
+        label(this, hsX - 90, y - 8, `#${i + 1} ${s.name}`, { size: 16, color: rowColor, origin: [0, 0.5] });
+        label(this, hsX - 90, y + 12, s.date, { size: 13, color: COLORS.dim, origin: [0, 0.5] });
+        label(this, hsX + 50, y, `${s.waves}`, { size: 18, color: rowColor, origin: [0.5, 0.5] });
+        label(this, hsX + 100, y, `${s.kills}`, { size: 18, color: rowColor, origin: [0.5, 0.5] });
+      });
+    }
   }
 
   registerSocketEvents() {

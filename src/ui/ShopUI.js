@@ -10,6 +10,7 @@ export class ShopUI {
     this.currentGold = 0;
     this.ownedWeapons = ['pistol'];
     this.activeWeapon = 'pistol';
+    this.upgradedWeapons = new Set();
     this.elements = [];
     this.rows = [];
     this.feedbackText = null;
@@ -98,6 +99,20 @@ export class ShopUI {
       }
     });
 
+    this.socket.socket.on('upgradeResult', ({ success, weaponId, newGold, upgrades, error }) => {
+      if (success) {
+        if (upgrades) upgrades.forEach(id => this.upgradedWeapons.add(id));
+        else this.upgradedWeapons.add(weaponId);
+        this.currentGold = newGold;
+        this.goldText?.setText(`GOLD: ${newGold}`);
+        this.showFeedback(`${getWeapon(weaponId).name} uppgraderad!`, '#ffdd00');
+        this.scene.playSfx?.('sfx_cash', 0.55);
+        this.refreshItemStates();
+      } else {
+        this.showFeedback(error || 'Uppgradering misslyckades', COLORS.red);
+      }
+    });
+
     const onActive = ({ playerId, weaponId }) => {
       if (playerId === this.socket.id) {
         this.activeWeapon = weaponId;
@@ -123,16 +138,28 @@ export class ShopUI {
       { size: 16, color: COLORS.dim, origin: [0, 0.5] }
     ).setDepth(62);
 
-    const price = label(this.scene, x0 + 380, y, `${w.price}g`, {
+    const price = label(this.scene, x0 + 360, y, `${w.price}g`, {
       size: 21, color: COLORS.gold, origin: [1, 0.5],
     }).setDepth(62);
 
-    const btn = button(this.scene, x0 + 470, y, 90, 32, 'BUY', {
+    const btn = button(this.scene, x0 + 435, y, 86, 32, 'BUY', {
       tint: BTN.green, fontSize: 11, depth: 62,
       onClick: () => this.onRowClick(w.id),
     });
 
-    const row = { weapon: w, btn, price, parts: [icon, name, stats, price, btn.bg, btn.txt] };
+    // Upgrade button (★) — hidden/disabled for pistol
+    let upgradeBtn = null;
+    if (w.id !== 'pistol') {
+      const upgradeCost = Math.floor(w.price * 0.6);
+      upgradeBtn = button(this.scene, x0 + 536, y, 80, 32, `★ ${upgradeCost}g`, {
+        tint: BTN.gray, fontSize: 10, depth: 62,
+        onClick: () => this.socket.socket.emit('upgradeWeapon', { weaponId: w.id }),
+      });
+    }
+
+    const parts = [icon, name, stats, price, btn.bg, btn.txt];
+    if (upgradeBtn) parts.push(upgradeBtn.bg, upgradeBtn.txt);
+    const row = { weapon: w, btn, upgradeBtn, price, parts };
     this.rows.push(row);
   }
 
@@ -184,6 +211,22 @@ export class ShopUI {
         row.btn.setTint(BTN.gray).disable();
         row.btn.setText('BUY').setTextColor(COLORS.dim);
       }
+
+      if (row.upgradeBtn) {
+        const upgraded = this.upgradedWeapons.has(id);
+        const upgradeCost = Math.floor(row.weapon.price * 0.6);
+        const canAffordUpgrade = this.currentGold >= upgradeCost;
+        if (upgraded) {
+          row.upgradeBtn.setTint(BTN.gold).disable();
+          row.upgradeBtn.setText('★ KLAR').setTextColor('#10182e');
+        } else if (owned && canAffordUpgrade) {
+          row.upgradeBtn.setTint(0xbb8800).enable();
+          row.upgradeBtn.setText(`★ ${upgradeCost}g`).setTextColor(COLORS.white);
+        } else {
+          row.upgradeBtn.setTint(BTN.gray).disable();
+          row.upgradeBtn.setText(`★ ${upgradeCost}g`).setTextColor(COLORS.dim);
+        }
+      }
     }
   }
 
@@ -198,6 +241,7 @@ export class ShopUI {
     this.eKey.off('down');
     this.socket.socket.off('goldUpdate');
     this.socket.socket.off('purchaseResult');
+    this.socket.socket.off('upgradeResult');
     this.socket.socket.off('weaponEquipped');
     this.socket.socket.off('weaponSwitched');
     this.elements.forEach((e) => e.destroy());

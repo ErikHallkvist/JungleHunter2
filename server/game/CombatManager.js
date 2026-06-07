@@ -6,6 +6,7 @@ const ROOM_MIN_X = 32;
 const ROOM_MAX_X = 1248;
 const ROOM_MIN_Y = 32;
 const ROOM_MAX_Y = 688;
+const COMBO_WINDOW_MS = 3000;
 
 export class CombatManager {
   constructor(io, enemyManager, getPlayers, shopManager) {
@@ -13,28 +14,74 @@ export class CombatManager {
     this.enemyManager = enemyManager;
     this.getPlayers = getPlayers;
     this.shopManager = shopManager;
-    this.activeBullets = new Map(); // bulletId -> bullet object
-    this.grenadeCooldowns = new Map(); // socketId -> timestamp (for Q-throw)
+    this.activeBullets = new Map();
+    this.grenadeCooldowns = new Map();
+    // combo tracking: socketId -> { count, lastKillTime, timeoutHandle }
+    this.combos = new Map();
+  }
+
+  _recordKill(socketId) {
+    const now = Date.now();
+    let combo = this.combos.get(socketId);
+    if (!combo) combo = { count: 0, lastKillTime: 0, timeoutHandle: null };
+
+    if (now - combo.lastKillTime <= COMBO_WINDOW_MS) {
+      combo.count++;
+    } else {
+      combo.count = 1;
+    }
+    combo.lastKillTime = now;
+
+    if (combo.timeoutHandle) clearTimeout(combo.timeoutHandle);
+    combo.timeoutHandle = setTimeout(() => {
+      this.combos.delete(socketId);
+      this.io.to(socketId).emit('comboUpdate', { combo: 0 });
+    }, COMBO_WINDOW_MS);
+
+    this.combos.set(socketId, combo);
+    this.io.to(socketId).emit('comboUpdate', { combo: combo.count });
+
+    // multiplier: x2 at 2, x3 at 5, x4 at 10+
+    let mult = 1;
+    if (combo.count >= 10) mult = 4;
+    else if (combo.count >= 5) mult = 3;
+    else if (combo.count >= 2) mult = 2;
+    return mult;
+  }
+
+  _getWeaponDamage(socketId, baseWeapon) {
+    const upgrades = this.shopManager.getUpgrades(socketId);
+    if (upgrades.has(baseWeapon.id)) {
+      return Math.floor(baseWeapon.damage * 1.2);
+    }
+    return baseWeapon.damage;
+  }
+
+  _getWeaponFireRate(socketId, baseWeapon) {
+    const upgrades = this.shopManager.getUpgrades(socketId);
+    if (upgrades.has(baseWeapon.id)) {
+      return Math.floor(baseWeapon.fireRate * 0.9);
+    }
+    return baseWeapon.fireRate;
   }
 
   handleShot(socketId, data) {
     const { originX, originY } = data;
 
-    // Server is authoritative about which weapon the player actually holds.
     const weaponId = this.shopManager.getActiveWeapon(socketId);
     const weapon = getWeapon(weaponId);
 
-    // Grenades are thrown with the Q key (throwGrenade event), not regular fire.
     if (weapon.id === 'grenade') return;
 
-    // Build spread angles centred on 0 (straight right).
     const n = weapon.pellets;
     const spreadRad = (weapon.spreadDeg * Math.PI) / 180;
     const angles = [];
     for (let i = 0; i < n; i++) {
-      const t = n === 1 ? 0 : i / (n - 1) - 0.5; // -0.5 .. 0.5
+      const t = n === 1 ? 0 : i / (n - 1) - 0.5;
       angles.push(t * spreadRad);
     }
+
+    const damage = this._getWeaponDamage(socketId, weapon);
 
     for (const angle of angles) {
       const vx = Math.cos(angle) * weapon.speed;
@@ -49,11 +96,10 @@ export class CombatManager {
         vx,
         vy,
         weaponType: weapon.id,
-        damage: weapon.damage,
+        damage,
         createdAt: Date.now(),
       });
 
-      // Broadcast to EVERY client so all players see each other's shots.
       this.io.emit('bulletFired', {
         id: bulletId,
         ownerId: socketId,
@@ -75,21 +121,41 @@ export class CombatManager {
     const bullet = this.activeBullets.get(bulletId);
     if (!bullet) return;
 
-    // Only the bullet's owner can register its hits.
     if (bullet.ownerId !== socketId) return;
 
     const damage = bullet.damage;
     const killed = this.enemyManager.damageEnemy(enemyId, damage, socketId);
 
     if (killed) {
-      this.shopManager.addGold(socketId, GOLD_PER_KILL);
+      const mult = this._recordKill(socketId);
+      const enemy = this.enemyManager.getKilledEnemy?.(enemyId);
+      // elite enemies return goldValue directly
+      const baseGold = enemy?.goldValue ?? GOLD_PER_KILL;
+      this.shopManager.addGold(socketId, baseGold * mult);
+
+      // Synergy passive: AoE explosion on kill
+      const passives = this.shopManager.getPassives(socketId);
+      if (passives.has('synergy')) {
+        const killedEnemy = this.enemyManager.getLastKilledPos();
+        if (killedEnemy) {
+          this._synergyExplosion(socketId, killedEnemy.x, killedEnemy.y, 100, damage * 0.5);
+        }
+      }
     }
 
     this.io.to(socketId).emit('hitConfirmed', { bulletId, enemyId, damage, killed });
     this.activeBullets.delete(bulletId);
   }
 
-  // Called when Q key is pressed — throw a grenade toward target position.
+  _synergyExplosion(socketId, cx, cy, radius, damage) {
+    for (const enemy of this.enemyManager.getAllEnemies()) {
+      if (Math.hypot(enemy.x - cx, enemy.y - cy) <= radius) {
+        this.enemyManager.damageEnemy(enemy.id, damage, socketId);
+      }
+    }
+    this.io.emit('grenadeExploded', { id: 'syn_' + Math.random().toString(36).substr(2,5), x: cx, y: cy, radius });
+  }
+
   handleGrenadeThrow(socketId, { originX, originY, targetX, targetY }) {
     const now = Date.now();
     const weapon = getWeapon('grenade');
@@ -109,7 +175,6 @@ export class CombatManager {
     const vy = (dy / len) * weapon.speed;
     const grenadeId = Math.random().toString(36).substr(2, 9);
 
-    // Broadcast the grenade as a projectile so all clients can render it.
     this.io.emit('bulletFired', {
       id: grenadeId,
       ownerId: socketId,
@@ -121,7 +186,6 @@ export class CombatManager {
       bulletType: weapon.bulletType,
     });
 
-    // Server-side fuse: explode at predicted position after GRENADE_FUSE_MS.
     setTimeout(() => {
       const explX = Math.min(Math.max(originX + vx * (GRENADE_FUSE_MS / 1000), ROOM_MIN_X), ROOM_MAX_X);
       const explY = Math.min(Math.max(originY + vy * (GRENADE_FUSE_MS / 1000), ROOM_MIN_Y), ROOM_MAX_Y);
@@ -139,7 +203,8 @@ export class CombatManager {
     }
 
     if (kills > 0) {
-      this.shopManager.addGold(socketId, GOLD_PER_KILL * kills);
+      const mult = this._recordKill(socketId);
+      this.shopManager.addGold(socketId, GOLD_PER_KILL * kills * mult);
     }
 
     this.io.emit('grenadeExploded', { id: grenadeId, x: cx, y: cy, radius });
@@ -148,5 +213,9 @@ export class CombatManager {
   reset() {
     this.activeBullets.clear();
     this.grenadeCooldowns.clear();
+    for (const c of this.combos.values()) {
+      if (c.timeoutHandle) clearTimeout(c.timeoutHandle);
+    }
+    this.combos.clear();
   }
 }

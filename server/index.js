@@ -5,6 +5,7 @@ import { EnemyManager } from './game/EnemyManager.js';
 import { WaveManager } from './game/WaveManager.js';
 import { CombatManager } from './game/CombatManager.js';
 import { ShopManager } from './game/ShopManager.js';
+import { BarricadeManager } from './game/BarricadeManager.js';
 
 const app = express();
 const httpServer = createServer(app);
@@ -35,6 +36,7 @@ let enemyManager = null;
 let waveManager = null;
 let combatManager = null;
 let shopManager = null;
+let barricadeManager = null;
 
 function getUniqueName() {
   const used = new Set(Object.values(lobby).map((p) => p.name));
@@ -50,11 +52,11 @@ function broadcastLobbyUpdate() {
 function initGame() {
   shopManager = new ShopManager(io, () => gamePlayers);
   enemyManager = new EnemyManager(io, () => gamePlayers);
+  barricadeManager = new BarricadeManager(io, shopManager);
+  enemyManager.barricadeManager = barricadeManager;
   combatManager = new CombatManager(io, enemyManager, () => gamePlayers, shopManager);
-  waveManager = new WaveManager(io, enemyManager, () => gamePlayers);
+  waveManager = new WaveManager(io, enemyManager, () => gamePlayers, barricadeManager);
 
-  // Enemies no longer attack players — they try to escape past the left wall.
-  // Game over once MAX_LEAKS enemies have escaped.
   enemyManager.onEnemyLeaked = (totalLeaked) => {
     io.emit('leakUpdate', { escaped: totalLeaked, max: MAX_LEAKS });
     if (totalLeaked >= MAX_LEAKS) triggerGameOver();
@@ -81,6 +83,7 @@ function resetGame() {
   combatManager?.reset();
   shopManager?.reset();
   enemyManager?.clear();
+  barricadeManager?.clear();
   gameInProgress = false;
   defeatTriggered = false;
   Object.keys(gamePlayers).forEach((k) => delete gamePlayers[k]);
@@ -155,6 +158,24 @@ io.on('connection', (socket) => {
   socket.on('switchWeapon', ({ weaponId }) => {
     if (gameInProgress && shopManager) {
       shopManager.handleSwitch(socket.id, weaponId);
+    }
+  });
+
+  socket.on('upgradeWeapon', ({ weaponId }) => {
+    if (gameInProgress && shopManager) {
+      shopManager.handleUpgrade(socket.id, weaponId);
+    }
+  });
+
+  socket.on('purchasePassive', ({ passiveId }) => {
+    if (gameInProgress && shopManager) {
+      shopManager.handlePassivePurchase(socket.id, passiveId);
+    }
+  });
+
+  socket.on('placeBarricade', ({ x, y }) => {
+    if (gameInProgress && barricadeManager) {
+      barricadeManager.placeBarricade(socket.id, x, y);
     }
   });
 

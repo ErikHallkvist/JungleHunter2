@@ -1,15 +1,17 @@
 import { getEnemyType } from '../../shared/enemies.js';
 
-const ZIGZAG_AMP  = 55;   // ±55 px vertical swing
-const ZIGZAG_FREQ = 2.5;  // radians per second
-const SPRINT_ZONE = 400;  // x < 400 → sprint multiplier ramps up
-const HEAL_INTERVAL = 3000; // ms between healer pulses
+const ZIGZAG_AMP  = 55;
+const ZIGZAG_FREQ = 2.5;
+const SPRINT_ZONE = 400;
+const HEAL_INTERVAL = 3000;
 const HEAL_AMOUNT    = 25;
 const HEAL_RADIUS    = 150;
-const SPLIT_HP_RATIO = 0.4; // child gets 40% of parent maxHp
+const SPLIT_HP_RATIO = 0.4;
 const SPLIT_SPEED_MULT = 1.3;
 const Y_MIN = 80;
 const Y_MAX = 620;
+const ELITE_CHANCE = 0.08;
+const BARRICADE_DPS = 8;
 
 export class EnemyManager {
   constructor(io, getPlayers) {
@@ -19,6 +21,9 @@ export class EnemyManager {
     this.LEAK_X = -40;
     this.leaked = 0;
     this.onEnemyLeaked = null;
+    this._lastKilledPos = null;
+    this.barricadeManager = null;
+    this.speedMultiplier = 1;
   }
 
   spawnEnemy(typeId, hp) {
@@ -26,23 +31,28 @@ export class EnemyManager {
     const id = Math.random().toString(36).substr(2, 9);
     const x = 1240;
     const y = Math.floor(Math.random() * (Y_MAX - Y_MIN + 1)) + Y_MIN;
-    const speed = type.speed;
+
+    const isElite = Math.random() < ELITE_CHANCE;
+    const finalHp = isElite ? hp * 3 : hp;
+    const speed = isElite ? type.speed * 1.3 : type.speed;
     const ability = type.ability || null;
+    const goldValue = isElite ? hp * 5 : null;
 
     const enemy = {
-      id, x, y, hp, maxHp: hp, typeId, speed, ability,
+      id, x, y, hp: finalHp, maxHp: finalHp, typeId, speed, ability,
       baseY: y,
       zigzagPhase: 0,
       healTimer: 0,
       splitDone: false,
+      isElite,
+      goldValue,
     };
 
     this.enemies.set(id, enemy);
-    this.io.emit('enemySpawned', { id, x, y, hp, maxHp: hp, typeId, ability });
+    this.io.emit('enemySpawned', { id, x, y, hp: finalHp, maxHp: finalHp, typeId, ability, isElite });
     return enemy;
   }
 
-  // Called by split — spawns a child enemy without emitting to WaveManager count.
   spawnSplitChild(parent, offset) {
     const id = Math.random().toString(36).substr(2, 9);
     const y = Math.max(Y_MIN, Math.min(Y_MAX, parent.y + (offset === 0 ? -22 : 22)));
@@ -57,35 +67,54 @@ export class EnemyManager {
       maxHp: hp,
       typeId: parent.typeId,
       speed,
-      ability: null,   // children don't chain-split
+      ability: null,
       baseY: y,
       zigzagPhase: 0,
       healTimer: 0,
       splitDone: true,
+      isElite: false,
+      goldValue: null,
     };
 
     this.enemies.set(id, child);
-    this.io.emit('enemySpawned', { id, x: child.x, y: child.y, hp, maxHp: hp, typeId: child.typeId, ability: null });
+    this.io.emit('enemySpawned', { id, x: child.x, y: child.y, hp, maxHp: hp, typeId: child.typeId, ability: null, isElite: false });
     return child;
   }
 
   update(deltaMs) {
     for (const enemy of this.enemies.values()) {
-      // ── Zigzag: sine-wave vertical oscillation ──────────────────────────────
       if (enemy.ability === 'zigzag') {
         enemy.zigzagPhase += deltaMs / 1000;
         enemy.y = enemy.baseY + Math.sin(enemy.zigzagPhase * ZIGZAG_FREQ) * ZIGZAG_AMP;
         enemy.y = Math.max(Y_MIN, Math.min(Y_MAX, enemy.y));
       }
 
-      // ── Sprint: ramp up speed the closer to the left wall ──────────────────
-      let speedMult = 1;
+      let speedMult = this.speedMultiplier;
       if (enemy.ability === 'sprint' && enemy.x < SPRINT_ZONE) {
-        speedMult = 1 + ((SPRINT_ZONE - enemy.x) / SPRINT_ZONE) * 2;
+        speedMult *= 1 + ((SPRINT_ZONE - enemy.x) / SPRINT_ZONE) * 2;
       }
-      enemy.x -= enemy.speed * speedMult * (deltaMs / 1000);
 
-      // ── Healer: pulse-heal nearby allies every HEAL_INTERVAL ms ────────────
+      // Check barricade collision before moving
+      let blockedByBarricade = false;
+      if (this.barricadeManager) {
+        for (const barricade of this.barricadeManager.getBarricades()) {
+          const bw = barricade.w / 2;
+          const bh = barricade.h / 2 + 20;
+          const nextX = enemy.x - enemy.speed * speedMult * (deltaMs / 1000);
+          if (nextX <= barricade.x + bw + 5 && nextX >= barricade.x - bw - 5 &&
+              Math.abs(enemy.y - barricade.y) < bh + 20) {
+            enemy.x = barricade.x + bw + 5;
+            this.barricadeManager.damageBarricade(barricade.id, BARRICADE_DPS * (deltaMs / 1000));
+            blockedByBarricade = true;
+            break;
+          }
+        }
+      }
+
+      if (!blockedByBarricade) {
+        enemy.x -= enemy.speed * speedMult * (deltaMs / 1000);
+      }
+
       if (enemy.ability === 'healer') {
         enemy.healTimer += deltaMs;
         if (enemy.healTimer >= HEAL_INTERVAL) {
@@ -101,7 +130,6 @@ export class EnemyManager {
         }
       }
 
-      // ── Leak check ──────────────────────────────────────────────────────────
       if (enemy.x <= this.LEAK_X) {
         this.enemies.delete(enemy.id);
         this.leaked += 1;
@@ -121,13 +149,13 @@ export class EnemyManager {
     enemy.hp -= damage;
 
     if (enemy.hp <= 0) {
-      // ── Split: spawn two child enemies before removing the parent ──────────
       if (enemy.ability === 'split' && !enemy.splitDone) {
         enemy.splitDone = true;
         this.spawnSplitChild(enemy, 0);
         this.spawnSplitChild(enemy, 1);
       }
 
+      this._lastKilledPos = { x: enemy.x, y: enemy.y, goldValue: enemy.goldValue };
       this.enemies.delete(enemyId);
       this.io.emit('enemyDied', { id: enemyId, killedBy: killedBySocketId });
       return true;
@@ -137,7 +165,9 @@ export class EnemyManager {
     return false;
   }
 
+  getLastKilledPos() { return this._lastKilledPos; }
   getAllEnemies() { return Array.from(this.enemies.values()); }
   getAliveCount() { return this.enemies.size; }
   clear()         { this.enemies.clear(); }
+  setSpeedMultiplier(mult) { this.speedMultiplier = mult; }
 }
