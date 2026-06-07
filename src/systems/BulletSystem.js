@@ -97,15 +97,15 @@ export class BulletSystem {
   onBulletFired({ id, ownerId, x, y, vx, vy, weaponType, bulletType }) {
     const type = bulletType || getWeapon(weaponType).bulletType;
     const proj = PROJECTILES[type] || PROJECTILES.bullet;
+    const angle = Math.atan2(vy, vx);
+    const isEnemyBullet = typeof ownerId === 'string' && ownerId.startsWith('enemy_');
+    const mine = ownerId === this.socket.socket.id;
 
     // Small bullet sprite: a tiny elongated oval rotated along the shot direction
     const tracker = this.scene.add.graphics({ x, y }).setDepth(8);
-    tracker.fillStyle(0xffffcc, 1);
+    tracker.fillStyle(isEnemyBullet ? 0xff4400 : 0xffffcc, 1);
     tracker.fillEllipse(0, 0, 8, 3);
     tracker.setRotation(angle);
-
-    const angle = Math.atan2(vy, vx);
-    const mine = ownerId === this.socket.socket.id;
     const isGrenade = weaponType === 'grenade';
 
     if (!mine) {
