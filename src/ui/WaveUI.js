@@ -89,6 +89,12 @@ export class WaveUI {
       this.scene.tweens.add({ targets: this.flashText, alpha: 0, duration: 1500, delay: 500 });
     });
 
+    socket.socket.on('waveMilestone', ({ wave, bonusGold }) => {
+      this.scene.time.delayedCall(600, () => {
+        this._showBanner(`MILESTONE WAVE ${wave}! +${bonusGold}g BONUS`, '#e2b714', 3500);
+      });
+    });
+
     socket.socket.on('wavePreview', (data) => {
       this._showPreview(data.nextWave, data.enemyName, data.enemyCount, data.estimatedGold, data.isBoss);
     });
@@ -175,6 +181,7 @@ export class WaveUI {
       this.socket.socket.off('waveStart');
       this.socket.socket.off('waveCountdown');
       this.socket.socket.off('waveComplete');
+      this.socket.socket.off('waveMilestone');
       this.socket.socket.off('wavePreview');
       this.socket.socket.off('enemyDied');
       this.socket.socket.off('enemyLeaked');

@@ -10,6 +10,7 @@ import { ShopUI } from '../ui/ShopUI.js';
 import { PassiveShopUI } from '../ui/PassiveShopUI.js';
 import { GoldUI } from '../ui/GoldUI.js';
 import { ChatUI } from '../ui/ChatUI.js';
+import { KillFeedUI } from '../ui/KillFeedUI.js';
 import { FONT, FONT_HEAD, COLORS, preloadTheme } from '../ui/theme.js';
 
 const ROOM = { x: 32, y: 32, width: 1216, height: 656 };
@@ -157,6 +158,9 @@ export class GameScene extends Phaser.Scene {
     this.goldUI.init(this.socket, this.socket.id);
 
     this.chatUI = new ChatUI(this.socket, this.myName, this.chatMessages);
+
+    this.killFeedUI = new KillFeedUI(this);
+    this.killFeedUI.init(this.socket, this.socket.socket.id);
 
     // Track passives for speed/cooldown effects
     this._passiveResultHandler = ({ success, passives }) => {
@@ -368,6 +372,7 @@ export class GameScene extends Phaser.Scene {
     // The returnToLobby handler calls getMessages() then scene.start(), which
     // triggers shutdown before chatUI can be destroyed here — so guard by check.
     if (this.chatUI) { this.chatUI.destroy(); this.chatUI = null; }
+    this.killFeedUI?.destroy();
   }
 
   createRoom() {

@@ -1,6 +1,6 @@
 import { shopWeapons, getWeapon } from '../../shared/weapons.js';
 
-const PASSIVE_PRICES = { boots: 100, ammo_belt: 100, magnet: 120, synergy: 200, crit: 150, bounty_hunter: 250 };
+const PASSIVE_PRICES = { boots: 100, ammo_belt: 100, magnet: 120, synergy: 200, crit: 150, bounty_hunter: 250, lifesteal: 175 };
 const PASSIVES_LIST = Object.keys(PASSIVE_PRICES);
 
 export class ShopManager {

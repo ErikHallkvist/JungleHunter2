@@ -195,12 +195,14 @@ export class EnemyManager {
       }
 
       this._lastKilledPos = { x: enemy.x, y: enemy.y, goldValue: enemy.goldValue, isElite: enemy.isElite };
+      const killedByName = this.getPlayers()[killedBySocketId]?.name ?? 'Unknown';
+      const enemyType = getEnemyType(enemy.typeId);
       this.enemies.delete(enemyId);
-      this.io.emit('enemyDied', { id: enemyId, killedBy: killedBySocketId });
+      this.io.emit('enemyDied', { id: enemyId, killedBy: killedBySocketId, killedByName, enemyName: enemyType?.name ?? enemy.typeId });
       return true;
     }
 
-    this.io.emit('enemyDamaged', { id: enemyId, hp: enemy.hp, typeId: enemy.typeId });
+    this.io.emit('enemyDamaged', { id: enemyId, hp: enemy.hp, typeId: enemy.typeId, damage });
     return false;
   }
 

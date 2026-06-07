@@ -178,7 +178,7 @@ export class EnemySystem {
     this.enemies.delete(id);
   }
 
-  onEnemyDamaged({ id, hp, typeId }) {
+  onEnemyDamaged({ id, hp, typeId, damage }) {
     const enemy = this.enemies.get(id);
     if (!enemy) return;
 
@@ -197,6 +197,19 @@ export class EnemySystem {
     this.scene.time.delayedCall(80, () => {
       if (enemy.sprite?.active) enemy.sprite.clearTint();
     });
+
+    // Floating damage number
+    if (damage) {
+      const ox = (Math.random() - 0.5) * 20;
+      const dmgText = this.scene.add.text(enemy.sprite.x + ox, enemy.sprite.y - 24, `-${damage}`, {
+        fontSize: '15px', color: '#ffffff', fontFamily: 'monospace', fontStyle: 'bold',
+        stroke: '#000000', strokeThickness: 3,
+      }).setOrigin(0.5).setDepth(25);
+      this.scene.tweens.add({
+        targets: dmgText, y: dmgText.y - 38, alpha: 0, duration: 750, ease: 'Quad.easeOut',
+        onComplete: () => dmgText.destroy(),
+      });
+    }
 
     // Blood splatter on hit
     this.spawnBlood(enemy.sprite.x, enemy.sprite.y, 15);

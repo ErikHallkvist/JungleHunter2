@@ -64,7 +64,7 @@ function initGame() {
   barricadeManager = new BarricadeManager(io, shopManager);
   enemyManager.barricadeManager = barricadeManager;
   combatManager = new CombatManager(io, enemyManager, () => gamePlayers, shopManager);
-  waveManager = new WaveManager(io, enemyManager, () => gamePlayers, barricadeManager);
+  waveManager = new WaveManager(io, enemyManager, () => gamePlayers, barricadeManager, shopManager);
 
   enemyManager.onEnemyLeaked = (totalLeaked) => {
     io.emit('leakUpdate', { escaped: totalLeaked, max: MAX_LEAKS });
