@@ -40,24 +40,24 @@ export class PassiveShopUI {
 
     // Panel (taller to fit 6 passives)
     const px = 640, py = 360;
-    const panel = this.scene.add.rectangle(px, py, 500, 440, 0x0a0f1e, 0.97).setStrokeStyle(2, 0x1a3a2a).setDepth(65);
+    const panel = this.scene.add.rectangle(px, py, 500, 440, 0x0a0f1e, 0.97).setStrokeStyle(2, 0x1a3a2a).setDepth(101);
     const title = this.scene.add.text(px, py - 198, 'PASSIVE ABILITIES', {
       fontSize: '22px', color: '#44ff88', fontFamily: 'monospace', fontStyle: 'bold',
-    }).setOrigin(0.5).setDepth(67);
+    }).setOrigin(0.5).setDepth(103);
     this.goldText = this.scene.add.text(px, py - 168, 'Gold: 0', {
       fontSize: '16px', color: '#e2b714', fontFamily: 'monospace',
-    }).setOrigin(0.5).setDepth(67);
-    const divider = this.scene.add.rectangle(px, py - 150, 460, 1, 0x1a3a2a).setDepth(67);
+    }).setOrigin(0.5).setDepth(103);
+    const divider = this.scene.add.rectangle(px, py - 150, 460, 1, 0x1a3a2a).setDepth(103);
     this.elements.push(panel, title, this.goldText, divider);
 
     PASSIVES.forEach((p, i) => this._buildRow(p, py - 118 + i * 52));
 
     this.feedbackText = this.scene.add.text(px, py + 195, '', {
       fontSize: '15px', color: '#ffffff', fontFamily: 'monospace', fontStyle: 'bold',
-    }).setOrigin(0.5).setDepth(67).setAlpha(0);
+    }).setOrigin(0.5).setDepth(103).setAlpha(0);
     const hint = this.scene.add.text(px, py + 212, '[P] close  ·  passives are permanent for the run', {
       fontSize: '12px', color: '#444444', fontFamily: 'monospace',
-    }).setOrigin(0.5).setDepth(67);
+    }).setOrigin(0.5).setDepth(103);
     this.elements.push(this.feedbackText, hint);
 
     this.elements.forEach(e => e.setVisible(false));
@@ -90,19 +90,19 @@ export class PassiveShopUI {
     const px = 640;
     const name = this.scene.add.text(px - 200, y - 10, p.name, {
       fontSize: '17px', color: p.color, fontFamily: 'monospace', fontStyle: 'bold',
-    }).setOrigin(0, 0.5).setDepth(67);
+    }).setOrigin(0, 0.5).setDepth(103);
     const desc = this.scene.add.text(px - 200, y + 12, p.desc, {
       fontSize: '13px', color: '#888888', fontFamily: 'monospace',
-    }).setOrigin(0, 0.5).setDepth(67);
+    }).setOrigin(0, 0.5).setDepth(103);
     const priceText = this.scene.add.text(px + 60, y, `${p.price}g`, {
       fontSize: '15px', color: '#e2b714', fontFamily: 'monospace',
-    }).setOrigin(0.5, 0.5).setDepth(67);
+    }).setOrigin(0.5, 0.5).setDepth(103);
 
     // Use a single text object as the button — avoids z-order click blocking
     const btn = this.scene.add.text(px + 160, y, 'BUY', {
       fontSize: '13px', color: '#ffffff', fontFamily: 'monospace', fontStyle: 'bold',
       backgroundColor: '#226644', padding: { x: 12, y: 8 },
-    }).setOrigin(0.5).setDepth(67).setInteractive({ useHandCursor: true });
+    }).setOrigin(0.5).setDepth(103).setInteractive({ useHandCursor: true });
     btn.on('pointerdown', () => this.socket.socket.emit('purchasePassive', { passiveId: p.id }));
 
     const row = { passive: p, btn, priceText, parts: [name, desc, priceText, btn] };
