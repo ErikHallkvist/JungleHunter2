@@ -77,6 +77,7 @@ export class GameScene extends Phaser.Scene {
     this._maxWave = 0;
 
     this.createRoom();
+    this.createPlayerAnimations();
 
     this.wasd = this.input.keyboard.addKeys({
       up: Phaser.Input.Keyboard.KeyCodes.W,
@@ -154,14 +155,22 @@ export class GameScene extends Phaser.Scene {
       gamePlayerMoved: ({ id, x, y }) => {
         const p = this.players[id];
         if (p && id !== this.localId) {
+          if (x < p.sprite.x) p.sprite.setFlipX(true);
+          else if (x > p.sprite.x) p.sprite.setFlipX(false);
           p.sprite.setPosition(x, y);
           p.nameText.setPosition(x, y - PLAYER_H / 2 - 8);
           this.positionWeapon(p);
+          if (!p.sprite.anims.isPlaying) p.sprite.play('player_walk');
+          clearTimeout(p._stopAnimTimer);
+          p._stopAnimTimer = setTimeout(() => {
+            if (p.sprite?.active) { p.sprite.stop(); p.sprite.setFrame(0); }
+          }, 300);
         }
       },
       gamePlayerLeft: (id) => {
         const p = this.players[id];
         if (p) {
+          clearTimeout(p._stopAnimTimer);
           p.sprite.destroy();
           p.nameText.destroy();
           p.weaponSprite?.destroy();
@@ -269,143 +278,214 @@ export class GameScene extends Phaser.Scene {
 
   createRoom() {
     const bg = this.add.graphics().setDepth(0);
-
-    // Sky gradient: light azure at top → warm horizon
-    for (let y = 0; y < 260; y++) {
-      const t = y / 260;
-      const r = Math.round(Phaser.Math.Linear(0x87, 0xff, t));
-      const g = Math.round(Phaser.Math.Linear(0xce, 0xe0, t));
-      const b = Math.round(Phaser.Math.Linear(0xeb, 0xa0, t));
-      bg.fillStyle((r << 16) | (g << 8) | b, 1);
-      bg.fillRect(0, y, 1280, 1);
-    }
-
-    // Ocean: deep blue at horizon, lighter at shore
-    for (let y = 260; y < 420; y++) {
-      const t = (y - 260) / 160;
-      const r = Math.round(Phaser.Math.Linear(0x00, 0x1e, t));
-      const g = Math.round(Phaser.Math.Linear(0x80, 0xa0, t));
-      const b = Math.round(Phaser.Math.Linear(0xc8, 0xff, t));
-      bg.fillStyle((r << 16) | (g << 8) | b, 1);
-      bg.fillRect(0, y, 1280, 1);
-    }
-
-    // Sandy beach
-    for (let y = 420; y < 720; y++) {
-      const t = (y - 420) / 300;
-      const r = Math.round(Phaser.Math.Linear(0xf5, 0xc2, t));
-      const g = Math.round(Phaser.Math.Linear(0xdc, 0x9a, t));
-      const b = Math.round(Phaser.Math.Linear(0x9a, 0x5a, t));
-      bg.fillStyle((r << 16) | (g << 8) | b, 1);
-      bg.fillRect(0, y, 1280, 1);
-    }
-
-    // Gentle wave lines on the ocean
-    const waves = this.add.graphics().setDepth(1);
-    waves.lineStyle(2, 0xffffff, 0.35);
-    for (let i = 0; i < 6; i++) {
-      const wy = 290 + i * 22;
-      waves.beginPath();
-      for (let x = 0; x <= 1280; x += 4) {
-        const sx = x / 1280;
-        const waveY = wy + Math.sin(sx * Math.PI * 8 + i) * 3;
-        if (x === 0) waves.moveTo(x, waveY); else waves.lineTo(x, waveY);
-      }
-      waves.strokePath();
-    }
-
-    // Palm trees — drawn procedurally
-    this._drawPalm(bg,  80, 400, -0.25, 1.0);
-    this._drawPalm(bg, 220, 420,  0.15, 0.85);
-    this._drawPalm(bg, 1160, 410, 0.2, 1.0);
-    this._drawPalm(bg, 1020, 430, -0.1, 0.9);
-    this._drawPalm(bg,  600, 395,  0.05, 0.8);
-
-    // Sparse sand pebbles / texture dots
-    const sand = this.add.graphics().setDepth(1);
     const rng = Phaser.Math.RND;
-    for (let i = 0; i < 180; i++) {
-      const px = rng.between(0, 1280);
-      const py = rng.between(430, 710);
-      const shade = rng.between(0xb0, 0xcc);
-      sand.fillStyle((shade << 16) | (shade << 8) | (shade - 30), 0.5);
-      sand.fillCircle(px, py, rng.between(1, 3));
+
+    // Overcast winter sky
+    for (let y = 0; y < 200; y++) {
+      const t = y / 200;
+      const r = Math.round(Phaser.Math.Linear(0x8a, 0xcc, t));
+      const g = Math.round(Phaser.Math.Linear(0xa8, 0xde, t));
+      const b = Math.round(Phaser.Math.Linear(0xcc, 0xf2, t));
+      bg.fillStyle((r << 16) | (g << 8) | b, 1);
+      bg.fillRect(0, y, 1280, 1);
     }
 
-    // Dark vignette on the outer border strip
-    const gfx = this.add.graphics().setDepth(3);
-    gfx.fillStyle(0x000000, 0.35);
-    gfx.fillRect(0, 0, 1280, ROOM.y);                         // top
-    gfx.fillRect(0, ROOM.y + ROOM.height, 1280, ROOM.y);      // bottom
-    gfx.fillRect(0, 0, ROOM.x, 720);                          // left
-    gfx.fillRect(ROOM.x + ROOM.width, 0, ROOM.x, 720);        // right
+    // Distant frozen mountain silhouettes at horizon
+    bg.fillStyle(0xa0bcd0, 1);
+    const peaks = [
+      [0, 200, 110, 115, 220, 200],
+      [180, 200, 300, 90,  430, 200],
+      [390, 200, 510, 120, 620, 200],
+      [580, 200, 700, 82,  820, 200],
+      [780, 200, 900, 100, 1020, 200],
+      [980, 200, 1100, 118, 1230, 200],
+      [1150, 200, 1260, 95, 1380, 200],
+    ];
+    for (const [x0, y0, x1, y1, x2, y2] of peaks) {
+      bg.fillTriangle(x0, y0, x1, y1, x2, y2);
+    }
+    // Snow caps on each peak
+    bg.fillStyle(0xeef5ff, 1);
+    for (const [, , x1, y1] of peaks) {
+      bg.fillTriangle(x1 - 14, y1 + 20, x1, y1, x1 + 14, y1 + 20);
+    }
 
-    // Room border
-    gfx.lineStyle(3, 0x4caf50, 0.7);
-    gfx.strokeRect(ROOM.x, ROOM.y, ROOM.width, ROOM.height);
+    // Ice/snow ground — pale blue-white gradient
+    for (let y = 200; y < 720; y++) {
+      const t = (y - 200) / 520;
+      const r = Math.round(Phaser.Math.Linear(0xd0, 0xe8, t));
+      const g = Math.round(Phaser.Math.Linear(0xe4, 0xf4, t));
+      const b = Math.round(Phaser.Math.Linear(0xf4, 0xff, t));
+      bg.fillStyle((r << 16) | (g << 8) | b, 1);
+      bg.fillRect(0, y, 1280, 1);
+    }
+
+    // Ice crack network
+    const cracks = this.add.graphics().setDepth(1);
+    for (let i = 0; i < 40; i++) {
+      cracks.lineStyle(1, 0x6a9fbe, rng.frac() * 0.3 + 0.12);
+      let cx = rng.between(0, 1280);
+      let cy = rng.between(210, 720);
+      cracks.beginPath();
+      cracks.moveTo(cx, cy);
+      for (let s = 0; s < rng.between(2, 5); s++) {
+        cx += rng.between(-90, 90);
+        cy = Phaser.Math.Clamp(cy + rng.between(-40, 40), 210, 720);
+        cracks.lineTo(cx, cy);
+      }
+      cracks.strokePath();
+    }
+
+    // Snow drifts
+    const drifts = this.add.graphics().setDepth(1);
+    for (let i = 0; i < 14; i++) {
+      const dx = rng.between(40, 1240);
+      const dy = rng.between(260, 700);
+      const dw = rng.between(50, 190);
+      const dh = rng.between(7, 24);
+      drifts.fillStyle(0xffffff, 0.72);
+      drifts.fillEllipse(dx, dy, dw, dh);
+      drifts.fillStyle(0xffffff, 0.38);
+      drifts.fillEllipse(dx - dw * 0.08, dy - dh * 0.25, dw * 0.55, dh * 0.5);
+    }
+
+    // Frozen ponds — slightly darker blue ice patches
+    const ponds = this.add.graphics().setDepth(1);
+    for (let i = 0; i < 5; i++) {
+      const px = rng.between(80, 1200);
+      const py = rng.between(280, 640);
+      const pw = rng.between(70, 160);
+      const ph = rng.between(25, 55);
+      ponds.fillStyle(0x8ab8d8, 0.3);
+      ponds.fillEllipse(px, py, pw, ph);
+      ponds.lineStyle(1, 0x5a90b8, 0.45);
+      ponds.strokeEllipse(px, py, pw, ph);
+    }
+
+    // Ice sparkle dots
+    const sparkles = this.add.graphics().setDepth(1);
+    for (let i = 0; i < 90; i++) {
+      sparkles.fillStyle(0xffffff, rng.frac() * 0.55 + 0.1);
+      sparkles.fillCircle(rng.between(0, 1280), rng.between(200, 720), 1);
+    }
   }
 
-  // Draw a procedural palm tree on gfx at (cx, cy).
-  // lean: trunk lean angle in radians (positive = right), scale: size multiplier.
-  _drawPalm(gfx, cx, cy, lean, scale) {
-    const trunkH = 110 * scale;
-    const segments = 12;
-    // Trunk — slightly curved brownish segments
-    for (let i = 0; i < segments; i++) {
-      const t0 = i / segments;
-      const t1 = (i + 1) / segments;
-      const x0 = cx + Math.sin(lean * t0) * trunkH * t0;
-      const y0 = cy - t0 * trunkH;
-      const x1 = cx + Math.sin(lean * t1) * trunkH * t1;
-      const y1 = cy - t1 * trunkH;
-      const shade = 0x5a3810 + i * 0x020100;
-      gfx.fillStyle(shade, 1);
-      gfx.fillRect(x0 - 5 * scale, y0, 10 * scale, (y0 - y1) + 1);
+  createPlayerAnimations() {
+    const FW = PLAYER_W;
+    const FH = PLAYER_H;
+    const FRAMES = 4;
+
+    const canvas = document.createElement('canvas');
+    canvas.width = FW * FRAMES;
+    canvas.height = FH;
+    const ctx = canvas.getContext('2d');
+    ctx.imageSmoothingEnabled = false;
+
+    for (let f = 0; f < FRAMES; f++) {
+      this._drawPlayerFrame(ctx, f * FW, 0, f);
     }
 
-    // Fronds — 7 leaves fanning out from the top
-    const topX = cx + Math.sin(lean) * trunkH;
-    const topY = cy - trunkH;
-    const frondCount = 7;
-    for (let f = 0; f < frondCount; f++) {
-      const baseAngle = -Math.PI / 2 + lean;
-      const spread = Math.PI * 1.3;
-      const angle = baseAngle - spread / 2 + (f / (frondCount - 1)) * spread;
-      const frondLen = (45 + Math.random() * 20) * scale;
-      const ex = topX + Math.cos(angle) * frondLen;
-      const ey = topY + Math.sin(angle) * frondLen;
-      // Main stem
-      gfx.lineStyle(Math.round(3 * scale), 0x2d6a1a, 1);
-      gfx.beginPath();
-      gfx.moveTo(topX, topY);
-      gfx.lineTo(ex, ey);
-      gfx.strokePath();
-      // Leaf blades (pairs along the stem)
-      for (let l = 0.3; l <= 0.9; l += 0.25) {
-        const lx = topX + Math.cos(angle) * frondLen * l;
-        const ly = topY + Math.sin(angle) * frondLen * l;
-        const perpAngle = angle + Math.PI / 2;
-        const leafLen = 14 * scale * (1 - l * 0.4);
-        gfx.fillStyle(0x3a8a1e, 0.9);
-        const pts = [
-          { x: lx, y: ly },
-          { x: lx + Math.cos(perpAngle) * leafLen, y: ly + Math.sin(perpAngle) * leafLen },
-          { x: lx + Math.cos(angle) * leafLen * 0.5, y: ly + Math.sin(angle) * leafLen * 0.5 },
-        ];
-        gfx.fillPoints(pts, true);
-        const pts2 = [
-          { x: lx, y: ly },
-          { x: lx - Math.cos(perpAngle) * leafLen, y: ly - Math.sin(perpAngle) * leafLen },
-          { x: lx + Math.cos(angle) * leafLen * 0.5, y: ly + Math.sin(angle) * leafLen * 0.5 },
-        ];
-        gfx.fillPoints(pts2, true);
-      }
-    }
+    this.textures.addSpriteSheet('player_walk', canvas, {
+      frameWidth: FW,
+      frameHeight: FH,
+    });
 
-    // Coconuts
-    gfx.fillStyle(0x8b4513, 1);
-    gfx.fillCircle(topX - 5 * scale, topY + 4 * scale, 5 * scale);
-    gfx.fillCircle(topX + 4 * scale, topY + 6 * scale, 4 * scale);
+    this.anims.create({
+      key: 'player_walk',
+      frames: this.anims.generateFrameNumbers('player_walk', { start: 0, end: FRAMES - 1 }),
+      frameRate: 8,
+      repeat: -1,
+    });
+  }
+
+  // Draw one frame of the pixel-art walking character onto a 2D canvas context.
+  // frame 0/2 = neutral stance; frame 1 = left foot forward; frame 3 = right foot forward.
+  _drawPlayerFrame(ctx, ox, oy, frame) {
+    const bodyDY    = (frame % 2 === 1) ? -1 : 0;
+    const leftLegDY  = frame === 1 ? -4 : frame === 3 ?  4 : 0;
+    const rightLegDY = frame === 1 ?  4 : frame === 3 ? -4 : 0;
+    const leftArmDY  = frame === 1 ?  3 : frame === 3 ? -3 : 0;
+    const rightArmDY = frame === 1 ? -3 : frame === 3 ?  3 : 0;
+    const by = oy + bodyDY;
+
+    // Drop shadow
+    ctx.fillStyle = 'rgba(0,20,50,0.22)';
+    ctx.beginPath();
+    ctx.ellipse(ox + 18, oy + 46, 11, 3, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Boots
+    ctx.fillStyle = '#1a0e05';
+    ctx.fillRect(ox + 8,  by + 38 + leftLegDY,  8, 7);
+    ctx.fillRect(ox + 20, by + 38 + rightLegDY, 8, 7);
+    ctx.fillStyle = '#2c1808';
+    ctx.fillRect(ox + 8,  by + 38 + leftLegDY,  8, 2);
+    ctx.fillRect(ox + 20, by + 38 + rightLegDY, 8, 2);
+
+    // Pants
+    ctx.fillStyle = '#263848';
+    ctx.fillRect(ox + 9,  by + 26 + leftLegDY,  8, 14);
+    ctx.fillRect(ox + 19, by + 26 + rightLegDY, 8, 14);
+    ctx.fillStyle = '#32495e';
+    ctx.fillRect(ox + 9,  by + 26 + leftLegDY,  3, 12);
+    ctx.fillRect(ox + 19, by + 26 + rightLegDY, 3, 12);
+
+    // Jacket body
+    ctx.fillStyle = '#b83e14';
+    ctx.fillRect(ox + 8, by + 14, 20, 14);
+    ctx.fillStyle = '#8a2e0c';
+    ctx.fillRect(ox + 17, by + 15, 2, 12);
+    ctx.fillStyle = '#cc4c1c';
+    ctx.fillRect(ox + 9,  by + 14, 7, 4);
+    ctx.fillRect(ox + 20, by + 14, 7, 4);
+
+    // Arms
+    ctx.fillStyle = '#b83e14';
+    ctx.fillRect(ox + 2,  by + 15 + leftArmDY,  7, 14);
+    ctx.fillRect(ox + 27, by + 15 + rightArmDY, 7, 14);
+    ctx.fillStyle = '#cc4c1c';
+    ctx.fillRect(ox + 2,  by + 15 + leftArmDY,  2, 12);
+    ctx.fillRect(ox + 27, by + 15 + rightArmDY, 2, 12);
+
+    // Hands
+    ctx.fillStyle = '#c89060';
+    ctx.fillRect(ox + 2,  by + 27 + leftArmDY,  6, 4);
+    ctx.fillRect(ox + 28, by + 27 + rightArmDY, 6, 4);
+
+    // Neck
+    ctx.fillStyle = '#d8a070';
+    ctx.fillRect(ox + 15, by + 11, 6, 4);
+
+    // Head — pixel-art oval built from rects + arc
+    ctx.fillStyle = '#e8b878';
+    ctx.beginPath();
+    ctx.ellipse(ox + 18, by + 7, 8, 8, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillRect(ox + 11, by + 3, 14, 9);
+
+    // Hair
+    ctx.fillStyle = '#2c180a';
+    ctx.fillRect(ox + 10, by + 0, 16, 6);
+    ctx.fillRect(ox + 10, by + 0, 4,  10);
+    ctx.fillRect(ox + 22, by + 0, 4,  10);
+    ctx.fillStyle = '#3e2210';
+    ctx.fillRect(ox + 13, by + 0, 10, 2);
+
+    // Eyes
+    ctx.fillStyle = '#f0f0f0';
+    ctx.fillRect(ox + 13, by + 6, 3, 3);
+    ctx.fillRect(ox + 20, by + 6, 3, 3);
+    ctx.fillStyle = '#1a2040';
+    ctx.fillRect(ox + 14, by + 7, 2, 2);
+    ctx.fillRect(ox + 21, by + 7, 2, 2);
+
+    // Nose
+    ctx.fillStyle = '#b88050';
+    ctx.fillRect(ox + 17, by + 9, 2, 1);
+
+    // Mouth
+    ctx.fillStyle = '#b86840';
+    ctx.fillRect(ox + 15, by + 11, 5, 1);
   }
 
   spawnPlayer(playerData) {
@@ -413,7 +493,7 @@ export class GameScene extends Phaser.Scene {
 
     let sprite;
     if (isLocal) {
-      sprite = this.physics.add.image(playerData.x, playerData.y, 'player');
+      sprite = this.physics.add.sprite(playerData.x, playerData.y, 'player_walk', 0);
       sprite.setDisplaySize(PLAYER_W, PLAYER_H);
       sprite.body.setSize(PLAYER_W - 6, PLAYER_H - 6);
       sprite.body.setCollideWorldBounds(true);
@@ -421,9 +501,8 @@ export class GameScene extends Phaser.Scene {
       this.localId = playerData.id;
       this.weaponSystem.setLocalPlayerSprite(sprite);
     } else {
-      sprite = this.add.image(playerData.x, playerData.y, 'player');
+      sprite = this.add.sprite(playerData.x, playerData.y, 'player_walk', 0);
       sprite.setDisplaySize(PLAYER_W, PLAYER_H);
-      // Blue tint for other players
       sprite.setTint(0xaaddff);
     }
 
@@ -535,6 +614,15 @@ export class GameScene extends Phaser.Scene {
     }
 
     const moving = body.velocity.x !== 0 || body.velocity.y !== 0;
+
+    if (local) {
+      if (body.velocity.x < 0) local.sprite.setFlipX(true);
+      else if (body.velocity.x > 0) local.sprite.setFlipX(false);
+
+      if (moving && !local._moving) local.sprite.play('player_walk');
+      else if (!moving && local._moving) { local.sprite.stop(); local.sprite.setFrame(0); }
+      local._moving = moving;
+    }
     if (moving) {
       this.socket.emitPlayerMove(this.localSprite.x, this.localSprite.y);
       // Footstep ticks while moving (throttled).
