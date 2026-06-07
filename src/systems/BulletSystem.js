@@ -8,6 +8,7 @@ export class BulletSystem {
     this.getEnemies = null;
     this.hitBullets = new Set();
     this.lastRemoteSound = new Map(); // ownerId -> timestamp (dedup multi-pellet shots)
+    this._lastOwnFlash = 0;
   }
 
   init(socket, getEnemies) {
@@ -17,6 +18,42 @@ export class BulletSystem {
     socket.socket.on('grenadeExploded',  (data) => this.onGrenadeExploded(data));
   }
 
+  spawnMuzzleFlash(x, y, angle) {
+    const gfx = this.scene.add.graphics().setDepth(20);
+
+    // Outer flare
+    gfx.fillStyle(0xff9900, 0.7);
+    gfx.fillCircle(x, y, 10);
+
+    // Bright core
+    gfx.fillStyle(0xffffaa, 1.0);
+    gfx.fillCircle(x, y, 6);
+
+    // Elongated streak in firing direction
+    gfx.fillStyle(0xffffcc, 0.85);
+    const cos = Math.cos(angle);
+    const sin = Math.sin(angle);
+    const streakLen = 16;
+    const streakW = 4;
+    const pts = [
+      { x: x + cos * streakLen - sin * streakW, y: y + sin * streakLen + cos * streakW },
+      { x: x + cos * streakLen + sin * streakW, y: y + sin * streakLen - cos * streakW },
+      { x: x - sin * streakW,                   y: y + cos * streakW },
+      { x: x + sin * streakW,                   y: y - cos * streakW },
+    ];
+    gfx.fillPoints(pts, true);
+
+    this.scene.tweens.add({
+      targets: gfx,
+      alpha: 0,
+      scaleX: 1.6,
+      scaleY: 1.6,
+      duration: 80,
+      ease: 'Quad.easeOut',
+      onComplete: () => gfx.destroy(),
+    });
+  }
+
   onBulletFired({ id, ownerId, x, y, vx, vy, weaponType, bulletType }) {
     // Resolve the projectile visual (fall back via the weapon def).
     const type = bulletType || getWeapon(weaponType).bulletType;
@@ -24,7 +61,8 @@ export class BulletSystem {
 
     const sprite = this.scene.add.image(x, y, proj.sprite);
     sprite.setDisplaySize(proj.w, proj.h);
-    sprite.setRotation(Math.atan2(vy, vx));
+    const angle = Math.atan2(vy, vx);
+    sprite.setRotation(angle);
     sprite.setDepth(8);
 
     const mine = ownerId === this.socket.socket.id;
@@ -37,6 +75,14 @@ export class BulletSystem {
       if (now - (this.lastRemoteSound.get(ownerId) || 0) > 70) {
         this.lastRemoteSound.set(ownerId, now);
         this.scene.playShotSound?.(type, false);
+        this.spawnMuzzleFlash(x, y, angle);
+      }
+    } else {
+      // Own bullets: only flash on first pellet of a burst (dedup by 70ms window)
+      const now = Date.now();
+      if (now - this._lastOwnFlash > 70) {
+        this._lastOwnFlash = now;
+        this.spawnMuzzleFlash(x, y, angle);
       }
     }
 

@@ -9,11 +9,16 @@ const ABILITY_COLORS = {
   split:   0xffdd00,  // yellow
 };
 
+// Blood drop colours — dark reds to simulate ground stains.
+const BLOOD_COLORS = [0x8b0000, 0xaa1111, 0xcc2222, 0x990000];
+
 export class EnemySystem {
   constructor(scene) {
     this.scene = scene;
     this.enemies = new Map();
     this.socket = null;
+    // Persistent blood graphics objects — cleared each wave start.
+    this.bloodDecals = [];
   }
 
   init(socket) {
@@ -24,6 +29,26 @@ export class EnemySystem {
     socket.socket.on('enemyDamaged',  (data) => this.onEnemyDamaged(data));
     socket.socket.on('enemyLeaked',   (data) => this.onEnemyLeaked(data));
     socket.socket.on('enemyHealed',   (data) => this.onEnemyHealed(data));
+  }
+
+  // Spawn a few blood drops at (x, y) that stay on the ground.
+  spawnBlood(x, y, count = 4) {
+    const gfx = this.scene.add.graphics().setDepth(2);
+    for (let i = 0; i < count; i++) {
+      const ox = (Math.random() - 0.5) * 24;
+      const oy = (Math.random() - 0.5) * 18;
+      const r  = 2 + Math.random() * 4;
+      const color = BLOOD_COLORS[Math.floor(Math.random() * BLOOD_COLORS.length)];
+      gfx.fillStyle(color, 0.75 + Math.random() * 0.25);
+      gfx.fillEllipse(x + ox, y + oy, r * 1.5, r);
+    }
+    this.bloodDecals.push(gfx);
+  }
+
+  // Remove all blood decals — called on wave start.
+  clearBlood() {
+    for (const gfx of this.bloodDecals) gfx.destroy();
+    this.bloodDecals = [];
   }
 
   onEnemyLeaked({ id }) {
@@ -107,6 +132,10 @@ export class EnemySystem {
     aura?.destroy();
     eliteGlow?.destroy();
     eliteLabel?.destroy();
+
+    // Large blood pool on death
+    this.spawnBlood(sprite.x, sprite.y, enemy.isElite ? 10 : 6);
+
     sprite.setTint(0xffffff);
     this.scene.tweens.add({
       targets: sprite, alpha: 0, scaleX: 1.4, scaleY: 1.4, duration: 200,
@@ -134,6 +163,9 @@ export class EnemySystem {
     this.scene.time.delayedCall(80, () => {
       if (enemy.sprite?.active) enemy.sprite.clearTint();
     });
+
+    // Small blood splatter on hit
+    this.spawnBlood(enemy.sprite.x, enemy.sprite.y, 2);
   }
 
   onEnemyHealed({ id, hp }) {
@@ -194,5 +226,6 @@ export class EnemySystem {
       eliteLabel?.destroy();
     }
     this.enemies.clear();
+    this.clearBlood();
   }
 }
