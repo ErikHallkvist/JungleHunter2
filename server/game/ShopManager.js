@@ -1,10 +1,13 @@
 import { shopWeapons, getWeapon } from '../../shared/weapons.js';
 
+const PASSIVE_PRICES = { boots: 100, ammo_belt: 100, magnet: 120, synergy: 200 };
+const PASSIVES_LIST = Object.keys(PASSIVE_PRICES);
+
 export class ShopManager {
   constructor(io, getPlayers) {
     this.io = io;
     this.getPlayers = getPlayers;
-    // socketId -> { gold, weapons: [ids], active: id }
+    // socketId -> { gold, weapons: [ids], active: id, upgrades: Set, passives: Set }
     this.playerData = new Map();
   }
 
@@ -17,7 +20,10 @@ export class ShopManager {
   }
 
   initPlayer(socketId) {
-    this.playerData.set(socketId, { gold: 0, weapons: ['pistol'], active: 'pistol' });
+    this.playerData.set(socketId, {
+      gold: 0, weapons: ['pistol'], active: 'pistol',
+      upgrades: new Set(), passives: new Set(),
+    });
     this.io.to(socketId).emit('goldUpdate', { playerId: socketId, gold: 0, gained: 0 });
   }
 
@@ -28,17 +34,11 @@ export class ShopManager {
     this.io.emit('goldUpdate', { playerId: socketId, gold: data.gold, gained: amount });
   }
 
-  getGold(socketId) {
-    return this.playerData.get(socketId)?.gold ?? 0;
-  }
-
-  getActiveWeapon(socketId) {
-    return this.playerData.get(socketId)?.active ?? 'pistol';
-  }
-
-  getWeapons(socketId) {
-    return this.playerData.get(socketId)?.weapons ?? ['pistol'];
-  }
+  getGold(socketId) { return this.playerData.get(socketId)?.gold ?? 0; }
+  getActiveWeapon(socketId) { return this.playerData.get(socketId)?.active ?? 'pistol'; }
+  getWeapons(socketId) { return this.playerData.get(socketId)?.weapons ?? ['pistol']; }
+  getUpgrades(socketId) { return this.playerData.get(socketId)?.upgrades ?? new Set(); }
+  getPassives(socketId) { return this.playerData.get(socketId)?.passives ?? new Set(); }
 
   handlePurchase(socketId, weaponId) {
     const item = getWeapon(weaponId);
@@ -72,20 +72,65 @@ export class ShopManager {
     this.io.emit('weaponEquipped', { playerId: socketId, weaponId });
   }
 
-  // Switching to an already-owned weapon.
+  handleUpgrade(socketId, weaponId) {
+    const item = getWeapon(weaponId);
+    if (!item || item.id === 'pistol') {
+      this.io.to(socketId).emit('upgradeResult', { success: false, error: 'Cannot upgrade' });
+      return;
+    }
+    const data = this.playerData.get(socketId);
+    if (!data || !data.weapons.includes(weaponId)) {
+      this.io.to(socketId).emit('upgradeResult', { success: false, error: 'Not owned' });
+      return;
+    }
+    if (data.upgrades.has(weaponId)) {
+      this.io.to(socketId).emit('upgradeResult', { success: false, error: 'Already upgraded' });
+      return;
+    }
+    const upgradeCost = Math.floor(item.price * 0.6);
+    if (data.gold < upgradeCost) {
+      this.io.to(socketId).emit('upgradeResult', { success: false, error: 'Not enough gold' });
+      return;
+    }
+    data.gold -= upgradeCost;
+    data.upgrades.add(weaponId);
+    this.io.to(socketId).emit('upgradeResult', {
+      success: true, weaponId, newGold: data.gold, upgrades: Array.from(data.upgrades),
+    });
+    this.io.emit('goldUpdate', { playerId: socketId, gold: data.gold, gained: 0 });
+  }
+
   handleSwitch(socketId, weaponId) {
     const data = this.playerData.get(socketId);
     if (!data || !data.weapons.includes(weaponId)) return;
     data.active = weaponId;
-    // Broadcast so every client updates this player's visible weapon.
     this.io.emit('weaponSwitched', { playerId: socketId, weaponId });
   }
 
-  removePlayer(socketId) {
-    this.playerData.delete(socketId);
+  handlePassivePurchase(socketId, passiveId) {
+    if (!PASSIVES_LIST.includes(passiveId)) {
+      this.io.to(socketId).emit('passiveResult', { success: false, error: 'Unknown passive' });
+      return;
+    }
+    const data = this.playerData.get(socketId);
+    if (!data) return;
+    if (data.passives.has(passiveId)) {
+      this.io.to(socketId).emit('passiveResult', { success: false, error: 'Already owned' });
+      return;
+    }
+    const price = PASSIVE_PRICES[passiveId];
+    if (data.gold < price) {
+      this.io.to(socketId).emit('passiveResult', { success: false, error: 'Not enough gold' });
+      return;
+    }
+    data.gold -= price;
+    data.passives.add(passiveId);
+    this.io.to(socketId).emit('passiveResult', {
+      success: true, passiveId, newGold: data.gold, passives: Array.from(data.passives),
+    });
+    this.io.emit('goldUpdate', { playerId: socketId, gold: data.gold, gained: 0 });
   }
 
-  reset() {
-    this.playerData.clear();
-  }
+  removePlayer(socketId) { this.playerData.delete(socketId); }
+  reset() { this.playerData.clear(); }
 }

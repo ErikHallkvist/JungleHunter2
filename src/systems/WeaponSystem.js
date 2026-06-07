@@ -89,12 +89,15 @@ export class WeaponSystem {
 
   tryShoot() {
     if (!this.localPlayerSprite) return;
-    if (this.scene.gameEnded) return;       // no shooting after defeat
-    if (this.scene.shopUI?.isOpen) return;  // don't fire while shopping
+    if (this.scene.gameEnded) return;
+    if (this.scene.shopUI?.isOpen) return;
 
     const now = Date.now();
     const weapon = getWeapon(this.currentWeapon);
-    if (now - this.lastFireTime < weapon.fireRate) return;
+    const fireRate = this.scene.passives?.has('ammo_belt')
+      ? Math.floor(weapon.fireRate * 0.8)
+      : weapon.fireRate;
+    if (now - this.lastFireTime < fireRate) return;
 
     this.lastFireTime = now;
 

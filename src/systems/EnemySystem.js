@@ -32,20 +32,33 @@ export class EnemySystem {
     enemy.hpBarBg.destroy();
     enemy.hpBar.destroy();
     enemy.aura?.destroy();
+    enemy.eliteGlow?.destroy();
+    enemy.eliteLabel?.destroy();
     enemy.sprite.destroy();
     this.enemies.delete(id);
   }
 
-  onEnemySpawned({ id, x, y, hp, maxHp, typeId, ability }) {
+  onEnemySpawned({ id, x, y, hp, maxHp, typeId, ability, isElite }) {
     const key = `e_${typeId}`;
     const spriteKey = this.scene.textures.exists(key) ? key : 'e_slime';
 
-    // Ability aura — drawn behind the sprite.
+    // Elite glow (yellow) drawn furthest back
+    let eliteGlow = null;
+    if (isElite) {
+      eliteGlow = this.scene.add.rectangle(x, y, ENEMY_W + 18, ENEMY_H + 18, 0xffdd00, 0.45).setDepth(8);
+      this.scene.tweens.add({
+        targets: eliteGlow,
+        alpha: { from: 0.2, to: 0.65 },
+        duration: 500,
+        yoyo: true,
+        repeat: -1,
+      });
+    }
+
     let aura = null;
     if (ability && ABILITY_COLORS[ability]) {
       aura = this.scene.add.rectangle(x, y, ENEMY_W + 10, ENEMY_H + 10, ABILITY_COLORS[ability], 0.35)
         .setDepth(9);
-      // Pulse tween for healer and split; plain for others.
       if (ability === 'healer' || ability === 'split') {
         this.scene.tweens.add({
           targets: aura,
@@ -58,15 +71,24 @@ export class EnemySystem {
     }
 
     const sprite = this.scene.add.image(x, y, spriteKey);
-    sprite.setDisplaySize(ENEMY_W, ENEMY_H);
+    sprite.setDisplaySize(isElite ? ENEMY_W * 1.2 : ENEMY_W, isElite ? ENEMY_H * 1.2 : ENEMY_H);
     sprite.setDepth(10);
+    if (isElite) sprite.setTint(0xffeeaa);
 
-    const barW = 36;
+    const barW = isElite ? 48 : 36;
     const barY = y - ENEMY_H / 2 - 6;
-    const hpBarBg = this.scene.add.rectangle(x, barY, barW, 5, 0x333333).setDepth(11);
-    const hpBar   = this.scene.add.rectangle(x, barY, barW, 5, 0x00ff00).setDepth(12);
+    const hpBarBg = this.scene.add.rectangle(x, barY, barW, isElite ? 7 : 5, 0x333333).setDepth(11);
+    const hpBar   = this.scene.add.rectangle(x, barY, barW, isElite ? 7 : 5, 0x00ff00).setDepth(12);
 
-    this.enemies.set(id, { sprite, hpBarBg, hpBar, aura, hp, maxHp, typeId, targetX: x, targetY: y });
+    // ELITE label
+    let eliteLabel = null;
+    if (isElite) {
+      eliteLabel = this.scene.add.text(x, barY - 12, 'ELITE', {
+        fontSize: '11px', color: '#ffdd00', fontFamily: 'monospace', fontStyle: 'bold',
+      }).setOrigin(0.5).setDepth(13);
+    }
+
+    this.enemies.set(id, { sprite, hpBarBg, hpBar, aura, eliteGlow, eliteLabel, hp, maxHp, typeId, isElite, barW, targetX: x, targetY: y });
   }
 
   onEnemiesMoved(list) {
@@ -79,10 +101,12 @@ export class EnemySystem {
   onEnemyDied({ id }) {
     const enemy = this.enemies.get(id);
     if (!enemy) return;
-    const { sprite, hpBarBg, hpBar, aura } = enemy;
+    const { sprite, hpBarBg, hpBar, aura, eliteGlow, eliteLabel } = enemy;
     hpBarBg.destroy();
     hpBar.destroy();
     aura?.destroy();
+    eliteGlow?.destroy();
+    eliteLabel?.destroy();
     sprite.setTint(0xffffff);
     this.scene.tweens.add({
       targets: sprite, alpha: 0, scaleX: 1.4, scaleY: 1.4, duration: 200,
@@ -97,7 +121,7 @@ export class EnemySystem {
 
     enemy.hp = hp;
     const ratio = hp / enemy.maxHp;
-    const barW = 36;
+    const barW = enemy.barW ?? 36;
     enemy.hpBar.width = barW * ratio;
     enemy.hpBar.setFillStyle(ratio > 0.5 ? 0x00ff00 : ratio > 0.25 ? 0xffaa00 : 0xff3333);
 
@@ -118,7 +142,7 @@ export class EnemySystem {
 
     enemy.hp = hp;
     const ratio = hp / enemy.maxHp;
-    const barW = 36;
+    const barW = enemy.barW ?? 36;
     enemy.hpBar.width = barW * ratio;
     enemy.hpBar.setFillStyle(ratio > 0.5 ? 0x00ff00 : ratio > 0.25 ? 0xffaa00 : 0xff3333);
 
@@ -131,13 +155,16 @@ export class EnemySystem {
 
   update() {
     for (const enemy of this.enemies.values()) {
-      const { sprite, hpBarBg, hpBar, aura, targetX, targetY } = enemy;
+      const { sprite, hpBarBg, hpBar, aura, eliteGlow, eliteLabel, targetX, targetY } = enemy;
       sprite.x = Phaser.Math.Linear(sprite.x, targetX, 0.3);
       sprite.y = Phaser.Math.Linear(sprite.y, targetY, 0.3);
+      const barW = enemy.barW ?? 36;
       const barY = sprite.y - ENEMY_H / 2 - 6;
       hpBarBg.setPosition(sprite.x, barY);
-      hpBar.setPosition(sprite.x - (36 - hpBar.width) / 2, barY);
+      hpBar.setPosition(sprite.x - (barW - hpBar.width) / 2, barY);
       if (aura) aura.setPosition(sprite.x, sprite.y);
+      if (eliteGlow) eliteGlow.setPosition(sprite.x, sprite.y);
+      if (eliteLabel) eliteLabel.setPosition(sprite.x, barY - 12);
     }
   }
 
@@ -158,11 +185,13 @@ export class EnemySystem {
       this.socket.socket.off('enemyLeaked');
       this.socket.socket.off('enemyHealed');
     }
-    for (const { sprite, hpBarBg, hpBar, aura } of this.enemies.values()) {
+    for (const { sprite, hpBarBg, hpBar, aura, eliteGlow, eliteLabel } of this.enemies.values()) {
       sprite.destroy();
       hpBarBg.destroy();
       hpBar.destroy();
       aura?.destroy();
+      eliteGlow?.destroy();
+      eliteLabel?.destroy();
     }
     this.enemies.clear();
   }
