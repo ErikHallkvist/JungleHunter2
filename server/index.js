@@ -1,15 +1,21 @@
 import express from 'express';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
 import { EnemyManager } from './game/EnemyManager.js';
 import { WaveManager } from './game/WaveManager.js';
 import { CombatManager } from './game/CombatManager.js';
 import { ShopManager } from './game/ShopManager.js';
 import { BarricadeManager } from './game/BarricadeManager.js';
 
+const __dirname = dirname(fileURLToPath(import.meta.url));
+
 const app = express();
 const httpServer = createServer(app);
 const io = new Server(httpServer, { cors: { origin: '*' } });
+
+app.use(express.static(join(__dirname, '../dist')));
 
 const PORT = 3000;
 
