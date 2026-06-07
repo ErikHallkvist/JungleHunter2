@@ -105,11 +105,11 @@ export class ShopUI {
         else this.upgradedWeapons.add(weaponId);
         this.currentGold = newGold;
         this.goldText?.setText(`GOLD: ${newGold}`);
-        this.showFeedback(`${getWeapon(weaponId).name} uppgraderad!`, '#ffdd00');
+        this.showFeedback(`${getWeapon(weaponId).name} upgraded!`, '#ffdd00');
         this.scene.playSfx?.('sfx_cash', 0.55);
         this.refreshItemStates();
       } else {
-        this.showFeedback(error || 'Uppgradering misslyckades', COLORS.red);
+        this.showFeedback(error || 'Upgrade failed', COLORS.red);
       }
     });
 
@@ -218,7 +218,7 @@ export class ShopUI {
         const canAffordUpgrade = this.currentGold >= upgradeCost;
         if (upgraded) {
           row.upgradeBtn.setTint(BTN.gold).disable();
-          row.upgradeBtn.setText('★ KLAR').setTextColor('#10182e');
+          row.upgradeBtn.setText('★ DONE').setTextColor('#10182e');
         } else if (owned && canAffordUpgrade) {
           row.upgradeBtn.setTint(0xbb8800).enable();
           row.upgradeBtn.setText(`★ ${upgradeCost}g`).setTextColor(COLORS.white);

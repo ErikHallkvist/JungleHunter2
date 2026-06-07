@@ -1,6 +1,6 @@
 import { ENEMY_TYPES } from '../../shared/enemies.js';
 
-const WAVE_EVENTS = ['GULD-RUSH', 'MÖRKER', 'HETS', 'FRYSNING'];
+const WAVE_EVENTS = ['GOLD-RUSH', 'DARKNESS', 'FRENZY', 'FREEZE'];
 const BOSS_INTERVAL = 10; // boss wave every 10 waves
 
 export class WaveManager {
@@ -28,12 +28,17 @@ export class WaveManager {
   }
 
   tick() {
+    if (!this.gameRunning) return;
     const now = Date.now();
     const deltaMs = this.lastTime !== null ? now - this.lastTime : 50;
     this.lastTime = now;
 
-    this.enemyManager.update(deltaMs);
-    this.barricadeManager?.tick();
+    try {
+      this.enemyManager.update(deltaMs);
+      this.barricadeManager?.tick();
+    } catch (err) {
+      console.error('Tick error:', err);
+    }
 
     if (
       this.waveActive &&
@@ -45,6 +50,16 @@ export class WaveManager {
       this.io.emit('waveComplete', { waveNumber: this.currentWave });
       this.startCountdown(10, () => this.startNextWave());
     }
+  }
+
+  // Returns the pool of enemy types available for a given wave.
+  // New types unlock every wave; pool grows up to 6 choices.
+  _getEnemyPool(waveNum) {
+    const maxUnlocked = Math.min(waveNum, ENEMY_TYPES.length);
+    // Always include the "main" type for this wave plus up to 5 earlier types
+    const poolSize = Math.min(6, maxUnlocked);
+    const startIdx = Math.max(0, maxUnlocked - poolSize);
+    return ENEMY_TYPES.slice(startIdx, maxUnlocked);
   }
 
   _getNextWaveInfo(waveNum) {
@@ -69,11 +84,9 @@ export class WaveManager {
       waveEvent = WAVE_EVENTS[Math.floor(Math.random() * WAVE_EVENTS.length)];
     }
 
-    // Apply event effects
-    this._applyWaveEvent(waveEvent, enemyCount);
+    this._applyWaveEvent(waveEvent);
 
-    const goldMult = waveEvent === 'GULD-RUSH' ? 3 : 1;
-    const actualEnemyCount = waveEvent === 'FRYSNING' ? enemyCount * 2 : enemyCount;
+    const actualEnemyCount = waveEvent === 'FREEZE' ? enemyCount * 2 : enemyCount;
 
     this.io.emit('waveStart', {
       waveNumber: this.currentWave,
@@ -88,10 +101,13 @@ export class WaveManager {
     this.allEnemiesSpawned = false;
     this.activeEvent = waveEvent;
 
+    const pool = isBoss ? [type] : this._getEnemyPool(nextNum);
+
     let spawned = 0;
     const spawnInterval = setInterval(() => {
       if (!this.gameRunning) { clearInterval(spawnInterval); return; }
-      this.enemyManager.spawnEnemy(type.id, isBoss ? type.hp * 5 : type.hp);
+      const pick = pool[Math.floor(Math.random() * pool.length)];
+      this.enemyManager.spawnEnemy(pick.id, isBoss ? pick.hp * 5 : pick.hp);
       spawned++;
       if (spawned >= actualEnemyCount) {
         clearInterval(spawnInterval);
@@ -100,12 +116,12 @@ export class WaveManager {
     }, 600);
   }
 
-  _applyWaveEvent(event, baseCount) {
+  _applyWaveEvent(event) {
     switch (event) {
-      case 'HETS':
+      case 'FRENZY':
         this.enemyManager.setSpeedMultiplier(1.6);
         break;
-      case 'FRYSNING':
+      case 'FREEZE':
         this.enemyManager.setSpeedMultiplier(0.5);
         break;
       default:

@@ -1,5 +1,5 @@
-const BARRICADE_W = 120;
-const BARRICADE_H = 20;
+const BARRICADE_W = 20;
+const BARRICADE_H = 120;
 const BARRICADE_HP = 200;
 const BARRICADE_COST = 80;
 const MAX_PER_PLAYER = 3;

@@ -1,10 +1,10 @@
 import Phaser from 'phaser';
 
 const PASSIVES = [
-  { id: 'boots',     name: 'Stövlar',   price: 100, desc: '+25% rörelsehastighet',   color: '#44ff88' },
-  { id: 'ammo_belt', name: 'Ammobälte', price: 100, desc: '-20% vapenkyldown',        color: '#66aaff' },
-  { id: 'magnet',    name: 'Magnet',    price: 120, desc: 'Guld-animationer mot dig', color: '#e2b714' },
-  { id: 'synergy',   name: 'Synergi',   price: 200, desc: 'AoE-explosion vid träff',  color: '#ff6622' },
+  { id: 'boots',     name: 'Boots',     price: 100, desc: '+25% movement speed',      color: '#44ff88' },
+  { id: 'ammo_belt', name: 'Ammo Belt', price: 100, desc: '-20% weapon cooldown',     color: '#66aaff' },
+  { id: 'magnet',    name: 'Magnet',    price: 120, desc: 'Gold pulls toward you',     color: '#e2b714' },
+  { id: 'synergy',   name: 'Synergy',   price: 200, desc: 'AoE explosion on kill',     color: '#ff6622' },
 ];
 
 export class PassiveShopUI {
@@ -30,7 +30,7 @@ export class PassiveShopUI {
     this.rows = [];
 
     // HUD button
-    this.shopBtn = this.scene.add.text(1264, 660, '[P] FÖRMÅGOR', {
+    this.shopBtn = this.scene.add.text(1264, 660, '[P] PASSIVES', {
       fontSize: '14px', color: '#44ff88', fontFamily: 'monospace',
       backgroundColor: '#16213e', padding: { x: 8, y: 4 },
     }).setOrigin(1, 1).setDepth(120).setInteractive({ useHandCursor: true });
@@ -39,7 +39,7 @@ export class PassiveShopUI {
     // Panel
     const px = 640, py = 360;
     const panel = this.scene.add.rectangle(px, py, 500, 360, 0x0a0f1e, 0.97).setStrokeStyle(2, 0x1a3a2a).setDepth(65);
-    const title = this.scene.add.text(px, py - 160, 'PASSIVA FÖRMÅGOR', {
+    const title = this.scene.add.text(px, py - 160, 'PASSIVE ABILITIES', {
       fontSize: '22px', color: '#44ff88', fontFamily: 'monospace', fontStyle: 'bold',
     }).setOrigin(0.5).setDepth(67);
     this.goldText = this.scene.add.text(px, py - 130, 'Gold: 0', {
@@ -53,7 +53,7 @@ export class PassiveShopUI {
     this.feedbackText = this.scene.add.text(px, py + 145, '', {
       fontSize: '15px', color: '#ffffff', fontFamily: 'monospace', fontStyle: 'bold',
     }).setOrigin(0.5).setDepth(67).setAlpha(0);
-    const hint = this.scene.add.text(px, py + 162, '[P] stäng · förmågor är permanenta för rundan', {
+    const hint = this.scene.add.text(px, py + 162, '[P] close  ·  passives are permanent for the run', {
       fontSize: '12px', color: '#444444', fontFamily: 'monospace',
     }).setOrigin(0.5).setDepth(67);
     this.elements.push(this.feedbackText, hint);
@@ -75,11 +75,11 @@ export class PassiveShopUI {
         this.currentGold = newGold ?? this.currentGold;
         this.goldText?.setText(`Gold: ${this.currentGold}`);
         const label = PASSIVES.find(p => p.id === passiveId)?.name ?? passiveId;
-        this._showFeedback(`${label} aktiverad!`, '#44ff88');
+        this._showFeedback(`${label} activated!`, '#44ff88');
         this.scene.playSfx?.('sfx_cash', 0.4);
         this.refreshStates();
       } else {
-        this._showFeedback(error || 'Köp misslyckades', '#ff4444');
+        this._showFeedback(error || 'Purchase failed', '#ff4444');
       }
     });
   }
@@ -95,13 +95,15 @@ export class PassiveShopUI {
     const priceText = this.scene.add.text(px + 60, y, `${p.price}g`, {
       fontSize: '15px', color: '#e2b714', fontFamily: 'monospace',
     }).setOrigin(0.5, 0.5).setDepth(67);
-    const btn = this.scene.add.rectangle(px + 160, y, 90, 34, 0x226644).setDepth(66).setInteractive({ useHandCursor: true });
-    const btnText = this.scene.add.text(px + 160, y, 'KÖPA', {
+
+    // Use a single text object as the button — avoids z-order click blocking
+    const btn = this.scene.add.text(px + 160, y, 'BUY', {
       fontSize: '13px', color: '#ffffff', fontFamily: 'monospace', fontStyle: 'bold',
-    }).setOrigin(0.5).setDepth(67);
+      backgroundColor: '#226644', padding: { x: 12, y: 8 },
+    }).setOrigin(0.5).setDepth(67).setInteractive({ useHandCursor: true });
     btn.on('pointerdown', () => this.socket.socket.emit('purchasePassive', { passiveId: p.id }));
 
-    const row = { passive: p, btn, btnText, priceText, parts: [name, desc, priceText, btn, btnText] };
+    const row = { passive: p, btn, priceText, parts: [name, desc, priceText, btn] };
     this.rows.push(row);
   }
 
@@ -111,24 +113,23 @@ export class PassiveShopUI {
       const owned = this.owned.has(id);
       const affordable = this.currentGold >= price;
       if (owned) {
-        row.btn.setFillStyle(0x225533).disableInteractive();
-        row.btnText.setText('AKTIV');
+        row.btn.setText('ACTIVE').setColor('#aaffaa').setBackgroundColor('#225533').disableInteractive();
         row.priceText.setColor('#444444');
       } else if (affordable) {
-        row.btn.setFillStyle(0x226644).setInteractive({ useHandCursor: true });
-        row.btnText.setText('KÖPA').setColor('#ffffff');
+        row.btn.setText('BUY').setColor('#ffffff').setBackgroundColor('#226644').setInteractive({ useHandCursor: true });
         row.priceText.setColor('#e2b714');
       } else {
-        row.btn.setFillStyle(0x333333).disableInteractive();
-        row.btnText.setText('KÖPA').setColor('#555555');
+        row.btn.setText('BUY').setColor('#555555').setBackgroundColor('#333333').disableInteractive();
         row.priceText.setColor('#555555');
       }
     }
   }
 
   _showFeedback(msg, color) {
-    this.feedbackText.setText(msg).setColor(color).setAlpha(1);
-    this.scene.tweens.add({ targets: this.feedbackText, alpha: 0, duration: 1500, delay: 600 });
+    if (this.feedbackText) {
+      this.feedbackText.setText(msg).setColor(color).setAlpha(1);
+      this.scene.tweens.add({ targets: this.feedbackText, alpha: 0, duration: 1500, delay: 600 });
+    }
   }
 
   show() {
