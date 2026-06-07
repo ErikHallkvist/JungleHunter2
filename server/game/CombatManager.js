@@ -216,11 +216,16 @@ export class CombatManager {
   }
 
   _explodeGrenade(grenadeId, socketId, cx, cy, radius, damage) {
+    const stats = this._getStats(socketId);
     let kills = 0;
     for (const enemy of this.enemyManager.getAllEnemies()) {
       if (Math.hypot(enemy.x - cx, enemy.y - cy) <= radius) {
+        stats.damage += damage;
         const killed = this.enemyManager.damageEnemy(enemy.id, damage, socketId);
-        if (killed) kills++;
+        if (killed) {
+          stats.kills++;
+          kills++;
+        }
       }
     }
 

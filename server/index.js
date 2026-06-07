@@ -160,13 +160,13 @@ io.on('connection', (socket) => {
   });
 
   socket.on('playerShoot', (data) => {
-    if (gameInProgress && combatManager) {
+    if (gameInProgress && combatManager && !gamePlayers[socket.id]?.downed) {
       combatManager.handleShot(socket.id, data);
     }
   });
 
   socket.on('hitEnemy', (data) => {
-    if (gameInProgress && combatManager) {
+    if (gameInProgress && combatManager && !gamePlayers[socket.id]?.downed) {
       combatManager.handleHitEnemy(socket.id, data);
     }
   });
@@ -214,7 +214,7 @@ io.on('connection', (socket) => {
   });
 
   socket.on('throwGrenade', (data) => {
-    if (gameInProgress && combatManager && shopManager?.getWeapons(socket.id).includes('grenade')) {
+    if (gameInProgress && combatManager && !gamePlayers[socket.id]?.downed && shopManager?.getWeapons(socket.id).includes('grenade')) {
       combatManager.handleGrenadeThrow(socket.id, data);
     }
   });

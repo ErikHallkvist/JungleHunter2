@@ -164,10 +164,11 @@ export class GameScene extends Phaser.Scene {
       this._damageDealt += damage;
     });
 
-    // Track gold earned
-    this.socket.socket.on('goldUpdate', ({ playerId, gained }) => {
+    // Track gold earned — stored by ref so cleanup removes only this listener.
+    this._goldUpdateHandler = ({ playerId, gained }) => {
       if (playerId === this.socket.socket.id && gained > 0) this._goldEarned += gained;
-    });
+    };
+    this.socket.socket.on('goldUpdate', this._goldUpdateHandler);
 
     // "DOWNED" overlay for the local player
     this.downedText = this.add.text(640, 360, 'DOWNED\n[F] teammate can revive you\nRespawns next wave', {
@@ -343,8 +344,9 @@ export class GameScene extends Phaser.Scene {
       s.off('playerRevived', this._handlers.playerRevived);
       s.off('passiveResult');
       s.off('hitConfirmed');
-      s.off('goldUpdate');
+      s.off('goldUpdate', this._goldUpdateHandler);
     }
+    this.downedText?.destroy();
     this.gameMusic?.stop();
     this.enemySystem?.destroy();
     this.bulletSystem?.destroy();
