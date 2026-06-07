@@ -137,6 +137,7 @@ export class WaveManager {
     this.allEnemiesSpawned = false;
     this.activeEvent = waveEvent;
 
+    this.enemyManager.setCurrentWave(this.currentWave);
     const pool = isBoss ? [type] : this._getEnemyPool(nextNum);
 
     // Boss HP scales with player count: +30% per extra player.
