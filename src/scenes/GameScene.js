@@ -9,6 +9,7 @@ import { WaveUI } from '../ui/WaveUI.js';
 import { ShopUI } from '../ui/ShopUI.js';
 import { PassiveShopUI } from '../ui/PassiveShopUI.js';
 import { GoldUI } from '../ui/GoldUI.js';
+import { ChatUI } from '../ui/ChatUI.js';
 import { FONT, FONT_HEAD, COLORS, preloadTheme } from '../ui/theme.js';
 
 const ROOM = { x: 32, y: 32, width: 1216, height: 656 };
@@ -26,6 +27,7 @@ export class GameScene extends Phaser.Scene {
     this.socket = data.socket;
     this.myName = data.myName;
     this.initialPlayerList = data.playerList || [];
+    this.chatMessages = data.chatMessages || [];
   }
 
   preload() {
@@ -154,6 +156,8 @@ export class GameScene extends Phaser.Scene {
     this.goldUI = new GoldUI(this);
     this.goldUI.init(this.socket, this.socket.id);
 
+    this.chatUI = new ChatUI(this.socket, this.myName, this.chatMessages);
+
     // Track passives for speed/cooldown effects
     this._passiveResultHandler = ({ success, passives }) => {
       if (success && passives) passives.forEach(id => this.passives.add(id));
@@ -252,9 +256,11 @@ export class GameScene extends Phaser.Scene {
       enemyLeaked: () => this.playSfx('sfx_leak', 0.5),
       gameOver: () => this.showGameOver(),
       returnToLobby: ({ playerStats, wavesReached } = {}) => {
+        const chatMessages = this.chatUI?.getMessages() ?? [];
         this.scene.start('LobbyScene', {
           socket: this.socket,
           myName: this.myName,
+          chatMessages,
           gameResult: {
             waves: wavesReached ?? this._maxWave,
             kills: this._kills,
@@ -317,9 +323,11 @@ export class GameScene extends Phaser.Scene {
     // Client-side fallback: return to lobby after 5s even if server event is lost
     this.time.delayedCall(5000, () => {
       if (this.scene.isActive('GameScene')) {
+        const chatMessages = this.chatUI?.getMessages() ?? [];
         this.scene.start('LobbyScene', {
           socket: this.socket,
           myName: this.myName,
+          chatMessages,
           gameResult: { waves: this._maxWave, kills: this._kills, name: this.myName },
         });
       }
@@ -356,6 +364,10 @@ export class GameScene extends Phaser.Scene {
     this.shopUI?.destroy();
     this.passiveShopUI?.destroy();
     this.goldUI?.destroy();
+    // ChatUI is destroyed only when we're NOT handing it off to LobbyScene.
+    // The returnToLobby handler calls getMessages() then scene.start(), which
+    // triggers shutdown before chatUI can be destroyed here — so guard by check.
+    if (this.chatUI) { this.chatUI.destroy(); this.chatUI = null; }
   }
 
   createRoom() {
@@ -665,6 +677,14 @@ export class GameScene extends Phaser.Scene {
 
     const body = this.localSprite.body;
     const now = Date.now();
+
+    // Suppress all game input while the chat box is focused.
+    if (this.chatUI?.isFocused) {
+      this.enemySystem.update();
+      this.bulletSystem.update(delta);
+      this.localSprite.body.setVelocity(0);
+      return;
+    }
 
     // ── Q key: throw grenade toward mouse cursor (if owned) ─────────────────
     if (Phaser.Input.Keyboard.JustDown(this.qKey) && !this.gameEnded) {
