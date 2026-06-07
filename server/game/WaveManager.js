@@ -4,11 +4,12 @@ const WAVE_EVENTS = ['GOLD-RUSH', 'DARKNESS', 'FRENZY', 'FREEZE', 'ELITE_STORM',
 const BOSS_INTERVAL = 10; // boss wave every 10 waves
 
 export class WaveManager {
-  constructor(io, enemyManager, getPlayers, barricadeManager) {
+  constructor(io, enemyManager, getPlayers, barricadeManager, shopManager = null) {
     this.io = io;
     this.enemyManager = enemyManager;
     this.getPlayers = getPlayers;
     this.barricadeManager = barricadeManager || null;
+    this.shopManager = shopManager;
 
     this.currentWave = 0;
     this.gameRunning = false;
@@ -48,6 +49,16 @@ export class WaveManager {
       this.waveActive = false;
       this._clearWaveEvent();
       this.io.emit('waveComplete', { waveNumber: this.currentWave });
+
+      // Every 5 waves: award bonus gold to all players
+      if (this.currentWave % 5 === 0 && this.shopManager) {
+        const bonusGold = 50 + this.currentWave * 5;
+        for (const player of Object.values(this.getPlayers())) {
+          this.shopManager.addGold(player.id, bonusGold);
+        }
+        this.io.emit('waveMilestone', { wave: this.currentWave, bonusGold });
+      }
+
       this.startCountdown(10, () => this.startNextWave());
     }
   }

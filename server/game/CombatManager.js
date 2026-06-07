@@ -155,6 +155,18 @@ export class CombatManager {
       }
     }
 
+    // Lifesteal: 8% of damage dealt heals the shooter
+    if (passives.has('lifesteal')) {
+      const healAmt = Math.floor(damage * 0.08);
+      if (healAmt > 0) {
+        const player = this.getPlayers()[socketId];
+        if (player && !player.downed && player.hp < player.maxHp) {
+          player.hp = Math.min(player.maxHp, player.hp + healAmt);
+          this.io.emit('playerDamaged', { id: socketId, hp: player.hp, maxHp: player.maxHp });
+        }
+      }
+    }
+
     this.io.to(socketId).emit('hitConfirmed', { bulletId, enemyId, damage, killed, isCrit });
     this.activeBullets.delete(bulletId);
   }

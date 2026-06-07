@@ -7,6 +7,7 @@ const PASSIVES = [
   { id: 'synergy',        name: 'Synergy',         price: 200, desc: 'AoE explosion on kill',      color: '#ff6622' },
   { id: 'crit',           name: 'Critical Hit',    price: 150, desc: '15% chance for 2× damage',  color: '#ff4444' },
   { id: 'bounty_hunter',  name: 'Bounty Hunter',   price: 250, desc: 'Elites drop 2× gold',       color: '#ffcc00' },
+  { id: 'lifesteal',      name: 'Lifesteal',       price: 175, desc: '8% of damage dealt heals you', color: '#ff6666' },
 ];
 
 export class PassiveShopUI {
@@ -40,22 +41,22 @@ export class PassiveShopUI {
 
     // Panel (taller to fit 6 passives)
     const px = 640, py = 360;
-    const panel = this.scene.add.rectangle(px, py, 500, 440, 0x0a0f1e, 0.97).setStrokeStyle(2, 0x1a3a2a).setDepth(101);
-    const title = this.scene.add.text(px, py - 198, 'PASSIVE ABILITIES', {
+    const panel = this.scene.add.rectangle(px, py, 500, 494, 0x0a0f1e, 0.97).setStrokeStyle(2, 0x1a3a2a).setDepth(101);
+    const title = this.scene.add.text(px, py - 225, 'PASSIVE ABILITIES', {
       fontSize: '22px', color: '#44ff88', fontFamily: 'monospace', fontStyle: 'bold',
     }).setOrigin(0.5).setDepth(103);
-    this.goldText = this.scene.add.text(px, py - 168, 'Gold: 0', {
+    this.goldText = this.scene.add.text(px, py - 195, 'Gold: 0', {
       fontSize: '16px', color: '#e2b714', fontFamily: 'monospace',
     }).setOrigin(0.5).setDepth(103);
-    const divider = this.scene.add.rectangle(px, py - 150, 460, 1, 0x1a3a2a).setDepth(103);
+    const divider = this.scene.add.rectangle(px, py - 177, 460, 1, 0x1a3a2a).setDepth(103);
     this.elements.push(panel, title, this.goldText, divider);
 
-    PASSIVES.forEach((p, i) => this._buildRow(p, py - 118 + i * 52));
+    PASSIVES.forEach((p, i) => this._buildRow(p, py - 145 + i * 52));
 
-    this.feedbackText = this.scene.add.text(px, py + 195, '', {
+    this.feedbackText = this.scene.add.text(px, py + 222, '', {
       fontSize: '15px', color: '#ffffff', fontFamily: 'monospace', fontStyle: 'bold',
     }).setOrigin(0.5).setDepth(103).setAlpha(0);
-    const hint = this.scene.add.text(px, py + 212, '[P] close  ·  passives are permanent for the run', {
+    const hint = this.scene.add.text(px, py + 239, '[P] close  ·  passives are permanent for the run', {
       fontSize: '12px', color: '#444444', fontFamily: 'monospace',
     }).setOrigin(0.5).setDepth(103);
     this.elements.push(this.feedbackText, hint);
