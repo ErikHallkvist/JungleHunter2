@@ -3,6 +3,19 @@ import { ENEMY_TYPES } from '../../shared/enemies.js';
 const WAVE_EVENTS = ['GOLD-RUSH', 'DARKNESS', 'FRENZY', 'FREEZE', 'ELITE_STORM', 'HORDE', 'REGENERATION'];
 const BOSS_INTERVAL = 10; // boss wave every 10 waves
 
+// Enemy HP grows steadily with the wave number so difficulty keeps climbing
+// even after the enemy-type list loops (otherwise wave 40 would respawn the
+// weakest enemies at their base HP against fully-upgraded players).
+const HP_SCALE_PER_WAVE = 0.05;
+// Boss waves spawn fewer but far beefier enemies — a real boss fight instead
+// of a full-size horde where every single enemy has 5× HP.
+const BOSS_COUNT_FACTOR = 0.3;
+const BOSS_HP_BASE = 6;
+// Sustain between waves: living players recover a slice of their max HP at the
+// start of each wave, and downed players are revived to half HP.
+const WAVE_HEAL_FRACTION = 0.3;
+const REVIVE_HP_FRACTION = 0.5;
+
 export class WaveManager {
   constructor(io, enemyManager, getPlayers, barricadeManager, shopManager = null) {
     this.io = io;
@@ -88,24 +101,34 @@ export class WaveManager {
     const type = ENEMY_TYPES[typeIndex];
     const loop = Math.floor((waveNum - 1) / ENEMY_TYPES.length);
     const baseCount = 5 + (waveNum - 1) * 2 + loop * 3;
-    const enemyCount = Math.round(baseCount * this._playerScale(playerCount));
     const isBoss = waveNum % BOSS_INTERVAL === 0;
-    const estimatedGold = enemyCount * 10;
-    return { type, enemyCount, isBoss, estimatedGold, playerCount };
+    const hpScale = 1 + HP_SCALE_PER_WAVE * (waveNum - 1);
+    let enemyCount = Math.round(baseCount * this._playerScale(playerCount));
+    // Boss waves: trade away most of the count for huge per-enemy HP.
+    if (isBoss) enemyCount = Math.max(2, Math.round(enemyCount * BOSS_COUNT_FACTOR));
+    // Preview gold tracks the toughness-scaled reward enemies actually drop.
+    const perKill = Math.max(10, Math.round(type.hp * hpScale * 0.15));
+    const estimatedGold = enemyCount * perKill;
+    return { type, enemyCount, isBoss, estimatedGold, playerCount, hpScale };
   }
 
   startNextWave() {
     const nextNum = this.currentWave + 1;
-    const { type, enemyCount, isBoss, estimatedGold, playerCount } = this._getNextWaveInfo(nextNum);
+    const { type, enemyCount, isBoss, estimatedGold, playerCount, hpScale } = this._getNextWaveInfo(nextNum);
     this.currentWave = nextNum;
 
-    // Respawn any downed players at wave start
+    // Between-wave sustain: revive the downed at half HP, and let survivors
+    // recover a slice of their max HP so a long run isn't a slow bleed-out.
     for (const player of Object.values(this.getPlayers())) {
+      const maxHp = player.maxHp ?? 100;
       if (player.downed) {
         player.downed = false;
-        player.hp = 50;
+        player.hp = Math.round(maxHp * REVIVE_HP_FRACTION);
         player.lastContactDamageAt = 0;
-        this.io.emit('playerRevived', { id: player.id, hp: 50 });
+        this.io.emit('playerRevived', { id: player.id, hp: player.hp });
+      } else if (player.hp != null && player.hp < maxHp) {
+        player.hp = Math.min(maxHp, player.hp + Math.round(maxHp * WAVE_HEAL_FRACTION));
+        this.io.emit('playerDamaged', { id: player.id, hp: player.hp, maxHp });
       }
     }
 
@@ -141,14 +164,14 @@ export class WaveManager {
     const pool = isBoss ? [type] : this._getEnemyPool(nextNum);
 
     // Boss HP scales with player count: +30% per extra player.
-    const bossHpScale = isBoss ? 5 * (1 + 0.3 * (playerCount - 1)) : 1;
+    const bossHpScale = isBoss ? BOSS_HP_BASE * (1 + 0.3 * (playerCount - 1)) : 1;
 
     let spawned = 0;
     const spawnInterval = setInterval(() => {
       if (!this.gameRunning) { clearInterval(spawnInterval); return; }
       const pick = pool[Math.floor(Math.random() * pool.length)];
-      const baseHp = isBoss ? Math.round(pick.hp * bossHpScale) : pick.hp;
-      this.enemyManager.spawnEnemy(pick.id, Math.max(1, Math.floor(baseHp * hpMult)));
+      const scaledHp = pick.hp * hpScale * (isBoss ? bossHpScale : 1);
+      this.enemyManager.spawnEnemy(pick.id, Math.max(1, Math.floor(scaledHp * hpMult)));
       spawned++;
       if (spawned >= actualEnemyCount) {
         clearInterval(spawnInterval);

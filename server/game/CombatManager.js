@@ -195,20 +195,21 @@ export class CombatManager {
 
   _explodeGrenade(grenadeId, socketId, cx, cy, radius, damage) {
     const stats = this._getStats(socketId);
-    let kills = 0;
+    let goldEarned = 0;
     for (const enemy of this.enemyManager.getAllEnemies()) {
       if (Math.hypot(enemy.x - cx, enemy.y - cy) <= radius) {
+        const reward = enemy.goldValue ?? GOLD_PER_KILL;
         stats.damage += damage;
         const killed = this.enemyManager.damageEnemy(enemy.id, damage, socketId);
         if (killed) {
           stats.kills++;
-          kills++;
+          goldEarned += reward;
         }
       }
     }
 
-    if (kills > 0) {
-      this.shopManager.addGold(socketId, GOLD_PER_KILL * kills);
+    if (goldEarned > 0) {
+      this.shopManager.addGold(socketId, goldEarned);
     }
 
     this.io.emit('grenadeExploded', { id: grenadeId, x: cx, y: cy, radius });

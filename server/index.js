@@ -225,9 +225,9 @@ io.on('connection', (socket) => {
     if (!target || !reviver || !target.downed || reviver.downed) return;
     if (Math.hypot(reviver.x - target.x, reviver.y - target.y) > 80) return;
     target.downed = false;
-    target.hp = 50;
+    target.hp = Math.round((target.maxHp ?? 100) * 0.5);
     target.lastContactDamageAt = 0;
-    io.emit('playerRevived', { id: targetId, hp: 50 });
+    io.emit('playerRevived', { id: targetId, hp: target.hp });
   });
 
   socket.on('throwGrenade', (data) => {

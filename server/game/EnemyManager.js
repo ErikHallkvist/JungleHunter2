@@ -17,6 +17,13 @@ const CONTACT_DAMAGE = 25;
 const CONTACT_COOLDOWN_MS = 1000;
 const CONTACT_RADIUS = 35;
 
+// Gold reward scales with an enemy's effective HP so tanky late-game enemies
+// (and bosses) pay out more than early trash, keeping income on pace with
+// rising difficulty. Floored so weak enemies still give a worthwhile drop.
+const GOLD_PER_KILL = 10;
+const GOLD_HP_FACTOR = 0.15;
+const ELITE_GOLD_BONUS = 1.5;
+
 const ARMED_CHANCE = 0.20;
 const SHOOT_INTERVAL_MIN = 2500;
 const SHOOT_INTERVAL_MAX = 6000;
@@ -75,7 +82,8 @@ export class EnemyManager {
     const finalHp = isElite ? hp * 3 : hp;
     const speed = isElite ? type.speed * 1.3 : type.speed;
     const ability = type.ability || null;
-    const goldValue = isElite ? hp * 5 : null;
+    const baseGold = Math.max(GOLD_PER_KILL, Math.round(finalHp * GOLD_HP_FACTOR));
+    const goldValue = isElite ? Math.round(baseGold * ELITE_GOLD_BONUS) : baseGold;
 
     const hasWeapon = Math.random() < ARMED_CHANCE;
     const weaponId = hasWeapon ? this._pickWeapon() : null;
@@ -120,7 +128,7 @@ export class EnemyManager {
       healTimer: 0,
       splitDone: true,
       isElite: false,
-      goldValue: null,
+      goldValue: Math.max(GOLD_PER_KILL, Math.round(hp * GOLD_HP_FACTOR)),
       weapon: null,
       nextShootAt: null,
     };
